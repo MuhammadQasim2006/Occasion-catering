@@ -1,16 +1,89 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { categories, packages } from '@/data/mockPackages'
+import { categories, fetchPackages } from '@/data/mockPackages'
 import CategoryFilter from '@/components/packages/CategoryFilter.vue'
 import PackageCard from '@/components/packages/PackageCard.vue'
+import PackageCardSkeleton from '@/components/packages/PackageCardSkeleton.vue'
 
+// --- Hero carousel -------------------------------------------------------
+const heroSlides = [
+  {
+    image:
+      'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80',
+    alt: 'Candlelit outdoor dining table set among vineyards',
+    eyebrow: '✦ ✦',
+    title: 'Plan Your Occasion in Minutes',
+    subtitle: 'Browse curated catering packages for every event',
+    ctaTo: '/large-events',
+    ctaLabel: 'Browse Now →',
+  },
+  {
+    image:
+      'https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=1200&q=80',
+    alt: 'Corporate buffet spread set up for a brunch event',
+    eyebrow: '✦ ✦',
+    title: 'Catering That Fits Your Boardroom',
+    subtitle: 'From brunch meetings to full-day conferences',
+    ctaTo: '/small-events',
+    ctaLabel: 'View Corporate Menus →',
+  },
+  {
+    image:
+      'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=80',
+    alt: 'Intimate candlelit private dinner table setting',
+    eyebrow: '✦ ✦',
+    title: 'Make Tonight Feel Different',
+    subtitle: 'Private dining, plated course by course, at home',
+    ctaTo: '/small-events',
+    ctaLabel: 'Explore Private Dinners →',
+  },
+]
+
+const activeSlide = ref(0)
+let slideTimer = null
+
+function goToSlide(index) {
+  activeSlide.value = (index + heroSlides.length) % heroSlides.length
+  restartAutoplay()
+}
+
+function nextSlide() {
+  goToSlide(activeSlide.value + 1)
+}
+
+function prevSlide() {
+  goToSlide(activeSlide.value - 1)
+}
+
+function restartAutoplay() {
+  clearInterval(slideTimer)
+  slideTimer = setInterval(nextSlide, 6000)
+}
+
+onMounted(restartAutoplay)
+
+// --- Package grid: async load with loading / error / empty states -------
 const activeCategory = ref('all')
 const visibleCount = ref(4)
+const allPackages = ref([])
+const status = ref('loading') // 'loading' | 'success' | 'error'
+
+async function loadPackages() {
+  status.value = 'loading'
+  try {
+    allPackages.value = await fetchPackages()
+    status.value = 'success'
+  } catch {
+    status.value = 'error'
+  }
+}
+
+onMounted(loadPackages)
 
 const filteredPackages = computed(() => {
-  if (activeCategory.value === 'all') return packages
-  return packages.filter((pkg) => pkg.categoryId === activeCategory.value)
+  if (activeCategory.value === 'all') return allPackages.value
+  return allPackages.value.filter((pkg) => pkg.categoryId === activeCategory.value)
 })
 
 const displayedPackages = computed(() => filteredPackages.value.slice(0, visibleCount.value))
@@ -24,22 +97,56 @@ function selectCategory(id) {
 function loadMore() {
   visibleCount.value += 4
 }
+
+watch(status, (value) => {
+  if (value === 'success') visibleCount.value = 4
+})
 </script>
 
 <template>
-  <main>
-    <section class="hero">
-      <div class="hero__panel">
-        <p class="hero__eyebrow">✦ ✦</p>
-        <h1 class="hero__title">Plan Your Occasion in Minutes</h1>
-        <p class="hero__subtitle">Browse curated catering packages for every event</p>
-        <RouterLink to="/large-events" class="hero__cta">Browse Now →</RouterLink>
+  <main id="main-content">
+    <section
+      class="hero"
+      aria-roledescription="carousel"
+      aria-label="Featured event types"
+      @mouseenter="clearInterval(slideTimer)"
+      @mouseleave="restartAutoplay"
+    >
+      <div
+        v-for="(slide, index) in heroSlides"
+        :key="slide.title"
+        class="hero__slide"
+        :class="{ 'hero__slide--active': index === activeSlide }"
+        :aria-hidden="index !== activeSlide"
+      >
+        <div class="hero__panel">
+          <p class="hero__eyebrow">{{ slide.eyebrow }}</p>
+          <h1 class="hero__title">{{ slide.title }}</h1>
+          <p class="hero__subtitle">{{ slide.subtitle }}</p>
+          <RouterLink :to="slide.ctaTo" class="hero__cta">{{ slide.ctaLabel }}</RouterLink>
+        </div>
+        <img class="hero__image" :src="slide.image" :alt="slide.alt" />
       </div>
-      <img
-        class="hero__image"
-        src="https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=1200&q=80"
-        alt="Candlelit outdoor dining table set among vineyards"
-      />
+
+      <button class="hero__arrow hero__arrow--prev" aria-label="Previous slide" @click="prevSlide">
+        ‹
+      </button>
+      <button class="hero__arrow hero__arrow--next" aria-label="Next slide" @click="nextSlide">
+        ›
+      </button>
+
+      <div class="hero__dots" role="tablist" aria-label="Choose a slide">
+        <button
+          v-for="(slide, index) in heroSlides"
+          :key="`dot-${slide.title}`"
+          class="hero__dot"
+          :class="{ 'hero__dot--active': index === activeSlide }"
+          role="tab"
+          :aria-selected="index === activeSlide"
+          :aria-label="`Show slide ${index + 1}: ${slide.title}`"
+          @click="goToSlide(index)"
+        ></button>
+      </div>
     </section>
 
     <section class="packages">
@@ -49,15 +156,28 @@ function loadMore() {
         @select="selectCategory"
       />
 
-      <div class="packages__grid">
-        <PackageCard v-for="pkg in displayedPackages" :key="pkg.id" :pkg="pkg" />
+      <div v-if="status === 'loading'" class="packages__grid" aria-busy="true">
+        <PackageCardSkeleton v-for="n in 4" :key="n" />
       </div>
 
-      <p v-if="!displayedPackages.length" class="packages__empty">
-        No packages in this category yet — check back soon.
-      </p>
+      <div v-else-if="status === 'error'" class="packages__state">
+        <p>Couldn't load packages right now.</p>
+        <button class="packages__retry" @click="loadPackages">Try Again</button>
+      </div>
 
-      <button v-if="hasMore" class="packages__load-more" @click="loadMore">Load More</button>
+      <template v-else>
+        <div v-if="displayedPackages.length" class="packages__grid">
+          <PackageCard v-for="pkg in displayedPackages" :key="pkg.id" :pkg="pkg" />
+        </div>
+        <div v-else class="packages__state">
+          <p>No packages in this category yet.</p>
+          <button class="packages__retry" @click="selectCategory('all')">
+            View All Packages
+          </button>
+        </div>
+
+        <button v-if="hasMore" class="packages__load-more" @click="loadMore">Load More</button>
+      </template>
     </section>
 
     <section class="tour-banner">
@@ -87,14 +207,28 @@ main {
   width: 100%;
 }
 
-/* Hero */
+/* Hero carousel */
 .hero {
   position: relative;
   border-radius: var(--radius-md);
   overflow: hidden;
+  min-height: 340px;
+}
+
+.hero__slide {
+  position: absolute;
+  inset: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  min-height: 340px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.5s ease;
+}
+
+.hero__slide--active {
+  position: relative;
+  opacity: 1;
+  visibility: visible;
 }
 
 .hero__image {
@@ -103,6 +237,7 @@ main {
   object-fit: cover;
   grid-column: 1 / -1;
   grid-row: 1;
+  min-height: 340px;
 }
 
 .hero__panel {
@@ -132,7 +267,7 @@ main {
 .hero__title {
   font-size: 2.2rem;
   color: var(--color-white);
-  max-width: 12ch;
+  max-width: 14ch;
 }
 
 .hero__subtitle {
@@ -155,6 +290,58 @@ main {
   box-shadow: 0 4px 14px rgba(207, 157, 67, 0.4);
 }
 
+.hero__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-ink);
+  font-size: 1.3rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero__arrow--prev {
+  left: 1rem;
+}
+
+.hero__arrow--next {
+  right: 1rem;
+}
+
+.hero__dots {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.hero__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0;
+}
+
+.hero__dot--active {
+  background: var(--color-white);
+  width: 1.3rem;
+  border-radius: var(--radius-full);
+  transition: width 0.2s ease;
+}
+
 /* Packages */
 .packages {
   margin-top: 3rem;
@@ -169,10 +356,29 @@ main {
   gap: 1.25rem;
 }
 
-.packages__empty {
-  color: var(--color-muted);
+.packages__state {
   text-align: center;
-  padding: 2rem 0;
+  padding: 3rem 0;
+  color: var(--color-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.packages__retry {
+  background: transparent;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-full);
+  padding: 0.6rem 1.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-brown);
+}
+
+.packages__retry:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
 }
 
 .packages__load-more {
@@ -269,12 +475,20 @@ main {
   .packages__grid {
     grid-template-columns: 1fr;
   }
-  .hero {
+  .hero,
+  .hero__slide,
+  .hero__image {
     min-height: 420px;
   }
   .hero__panel {
     max-width: 100%;
     background: linear-gradient(180deg, rgba(20, 38, 29, 0.92) 40%, rgba(20, 38, 29, 0.6) 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__slide {
+    transition: none;
   }
 }
 </style>

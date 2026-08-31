@@ -1,5 +1,11 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { ref, watch } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
+import { useCartStore } from '@/stores/cart'
+
+const cart = useCartStore()
+const route = useRoute()
+const isMenuOpen = ref(false)
 
 const navLinks = [
   { to: '/', label: 'Home' },
@@ -8,11 +14,30 @@ const navLinks = [
   { to: '/tours', label: 'Tours' },
   { to: '/about', label: 'About' },
 ]
+
+function closeMenu() {
+  isMenuOpen.value = false
+}
+
+// Close the mobile menu automatically whenever navigation happens.
+watch(() => route.fullPath, closeMenu)
 </script>
 
 <template>
   <header class="navbar">
     <div class="navbar__top">
+      <button
+        class="navbar__hamburger"
+        :aria-expanded="isMenuOpen"
+        aria-controls="mobile-menu"
+        aria-label="Toggle menu"
+        @click="isMenuOpen = !isMenuOpen"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
       <RouterLink to="/" class="navbar__brand">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path
@@ -43,7 +68,7 @@ const navLinks = [
       </label>
 
       <div class="navbar__actions">
-        <button class="navbar__icon-btn" aria-label="View cart">
+        <RouterLink to="/cart" class="navbar__icon-btn" :aria-label="`View cart, ${cart.count} item${cart.count === 1 ? '' : 's'}`">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
               d="M3 4h2l1.6 10.4a2 2 0 0 0 2 1.6h8.3a2 2 0 0 0 2-1.6L20 8H6"
@@ -55,7 +80,8 @@ const navLinks = [
             <circle cx="9" cy="20" r="1.2" fill="var(--color-ink)" />
             <circle cx="17" cy="20" r="1.2" fill="var(--color-ink)" />
           </svg>
-        </button>
+          <span v-if="cart.count" class="navbar__cart-badge" aria-hidden="true">{{ cart.count }}</span>
+        </RouterLink>
         <RouterLink to="/login" class="navbar__login">Login</RouterLink>
         <RouterLink to="/register" class="navbar__signup">Sign Up</RouterLink>
       </div>
@@ -73,6 +99,36 @@ const navLinks = [
         {{ link.label }}
       </RouterLink>
     </nav>
+
+    <Transition name="menu-fade">
+      <div v-if="isMenuOpen" class="navbar__scrim" @click="closeMenu"></div>
+    </Transition>
+
+    <Transition name="menu-slide">
+      <nav
+        v-if="isMenuOpen"
+        id="mobile-menu"
+        class="navbar__mobile-menu"
+        aria-label="Mobile"
+      >
+        <button class="navbar__mobile-close" aria-label="Close menu" @click="closeMenu">
+          ✕
+        </button>
+        <RouterLink
+          v-for="link in navLinks"
+          :key="`mobile-${link.to}`"
+          :to="link.to"
+          class="navbar__mobile-link"
+        >
+          {{ link.label }}
+        </RouterLink>
+        <div class="navbar__mobile-divider"></div>
+        <RouterLink to="/login" class="navbar__mobile-link">Login</RouterLink>
+        <RouterLink to="/register" class="navbar__mobile-link navbar__mobile-link--signup">
+          Sign Up
+        </RouterLink>
+      </nav>
+    </Transition>
   </header>
 </template>
 
@@ -92,6 +148,25 @@ const navLinks = [
   display: flex;
   align-items: center;
   gap: 1.5rem;
+}
+
+.navbar__hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0.4rem;
+  width: 2.2rem;
+  height: 2.2rem;
+}
+
+.navbar__hamburger span {
+  display: block;
+  height: 2px;
+  background: var(--color-ink);
+  border-radius: 1px;
 }
 
 .navbar__brand {
@@ -148,10 +223,28 @@ const navLinks = [
 }
 
 .navbar__icon-btn {
+  position: relative;
   background: none;
   border: none;
   display: flex;
   padding: 0.25rem;
+}
+
+.navbar__cart-badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.4rem;
+  background: var(--color-gold);
+  color: var(--color-brown-deep);
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.2rem;
 }
 
 .navbar__login {
@@ -194,13 +287,107 @@ const navLinks = [
   border-bottom-color: var(--color-gold);
 }
 
+/* Mobile menu */
+.navbar__scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 38, 29, 0.5);
+  z-index: 40;
+}
+
+.navbar__mobile-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(80vw, 320px);
+  background: var(--color-white);
+  z-index: 50;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  box-shadow: -8px 0 24px rgba(43, 29, 18, 0.15);
+}
+
+.navbar__mobile-close {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.navbar__mobile-link {
+  padding: 0.85rem 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+}
+
+.navbar__mobile-link:hover {
+  background: var(--color-cream-soft);
+}
+
+.navbar__mobile-divider {
+  height: 1px;
+  background: var(--color-line);
+  margin: 0.75rem 0;
+}
+
+.navbar__mobile-link--signup {
+  background: var(--color-brown-deep);
+  color: var(--color-cream);
+  text-align: center;
+}
+
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+}
+
+.menu-slide-enter-active,
+.menu-slide-leave-active {
+  transition: transform 0.25s ease;
+}
+.menu-slide-enter-from,
+.menu-slide-leave-to {
+  transform: translateX(100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-fade-enter-active,
+  .menu-fade-leave-active,
+  .menu-slide-enter-active,
+  .menu-slide-leave-active {
+    transition: none;
+  }
+}
+
 @media (max-width: 720px) {
   .navbar__search {
     display: none;
   }
+  .navbar__hamburger {
+    display: flex;
+  }
   .navbar__links {
-    overflow-x: auto;
-    gap: 1.25rem;
+    display: none;
+  }
+  .navbar__login {
+    display: none;
+  }
+}
+
+@media (min-width: 721px) {
+  .navbar__mobile-menu,
+  .navbar__scrim {
+    display: none;
   }
 }
 </style>

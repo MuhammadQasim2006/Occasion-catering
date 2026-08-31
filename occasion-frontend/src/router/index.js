@@ -65,6 +65,12 @@ const router = createRouter({
       props: { title: 'Privacy Policy' },
     },
     {
+      path: '/cart',
+      name: 'cart',
+      component: PlaceholderView,
+      props: { title: 'Your Cart' },
+    },
+    {
       path: '/packages/:id',
       name: 'package-detail',
       component: PlaceholderView,
