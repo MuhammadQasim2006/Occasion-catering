@@ -1,11 +1,15 @@
 <script setup>
 defineProps({
+  // Each category is { category_id, name } — matching the real `categories`
+  // table exactly (category_id is a number for real rows; the parent view
+  // prepends a UI-only { category_id: 'all', name: 'All' } pseudo-entry since
+  // "All" isn't a real row in the database).
   categories: {
     type: Array,
     required: true,
   },
   activeId: {
-    type: String,
+    type: [Number, String],
     required: true,
   },
 })
@@ -17,14 +21,14 @@ defineEmits(['select'])
   <div class="category-filter" role="tablist" aria-label="Filter packages by category">
     <button
       v-for="category in categories"
-      :key="category.id"
+      :key="category.category_id"
       class="category-filter__pill"
-      :class="{ 'category-filter__pill--active': category.id === activeId }"
+      :class="{ 'category-filter__pill--active': category.category_id === activeId }"
       role="tab"
-      :aria-selected="category.id === activeId"
-      @click="$emit('select', category.id)"
+      :aria-selected="category.category_id === activeId"
+      @click="$emit('select', category.category_id)"
     >
-      {{ category.label }}
+      {{ category.name }}
     </button>
   </div>
 </template>

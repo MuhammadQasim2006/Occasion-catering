@@ -19,12 +19,12 @@ function handleViewPackage() {
 <template>
   <article class="package-card">
     <div class="package-card__image-wrap">
-      <img :src="pkg.image" :alt="pkg.name" class="package-card__image" loading="lazy" />
+      <img :src="pkg.image_url" :alt="pkg.name" class="package-card__image" loading="lazy" />
       <span v-if="pkg.badge" class="package-card__badge">{{ pkg.badge }}</span>
     </div>
     <div class="package-card__body">
       <h3 class="package-card__name">{{ pkg.name }}</h3>
-      <p class="package-card__price">From R{{ pkg.fromPrice }} / person</p>
+      <p class="package-card__price">From R{{ pkg.base_price }} / person</p>
       <p v-if="pkg.description" class="package-card__description">{{ pkg.description }}</p>
       <ul class="package-card__meta">
         <li>{{ pkg.guests }}</li>
@@ -32,7 +32,7 @@ function handleViewPackage() {
         <li class="package-card__feature">{{ pkg.feature }}</li>
       </ul>
       <RouterLink
-        :to="`/packages/${pkg.id}`"
+        :to="`/packages/${pkg.package_id}`"
         class="package-card__cta"
         @click="handleViewPackage"
       >

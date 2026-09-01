@@ -1,6 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import PlaceholderView from '../views/PlaceholderView.vue'
+import PackageDetail from '../views/PackageDetail.vue'
+import Checkout from '../views/Checkout.vue'
+import Login from '../views/Login.vue'
+import Register from '../views/Register.vue'
+import Dashboard from '../views/Dashboard.vue'
+import BookingHistory from '../views/BookingHistory.vue'
+import Confirmation from '../views/Confirmation.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -43,14 +50,12 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: PlaceholderView,
-      props: { title: 'Login' },
+      component: Login,
     },
     {
       path: '/register',
       name: 'register',
-      component: PlaceholderView,
-      props: { title: 'Sign Up' },
+      component: Register,
     },
     {
       path: '/terms',
@@ -73,8 +78,27 @@ const router = createRouter({
     {
       path: '/packages/:id',
       name: 'package-detail',
-      component: PlaceholderView,
-      props: { title: 'Package Detail' },
+      component: PackageDetail,
+    },
+    {
+      path: '/checkout',
+      name: 'checkout',
+      component: Checkout,
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: Dashboard,
+    },
+    {
+      path: '/bookings',
+      name: 'booking-history',
+      component: BookingHistory,
+    },
+    {
+      path: '/confirmation/:bookingId?',
+      name: 'confirmation',
+      component: Confirmation,
     },
   ],
 })

@@ -69,6 +69,11 @@ const visibleCount = ref(4)
 const allPackages = ref([])
 const status = ref('loading') // 'loading' | 'success' | 'error'
 
+// "All" isn't a real row in the categories table, so it's added here in the
+// view rather than baked into mockPackages.js — that way `categories` stays a
+// direct stand-in for whatever GET /api/categories (or similar) will return.
+const categoriesWithAll = computed(() => [{ category_id: 'all', name: 'All' }, ...categories])
+
 async function loadPackages() {
   status.value = 'loading'
   try {
@@ -83,7 +88,7 @@ onMounted(loadPackages)
 
 const filteredPackages = computed(() => {
   if (activeCategory.value === 'all') return allPackages.value
-  return allPackages.value.filter((pkg) => pkg.categoryId === activeCategory.value)
+  return allPackages.value.filter((pkg) => pkg.category_id === activeCategory.value)
 })
 
 const displayedPackages = computed(() => filteredPackages.value.slice(0, visibleCount.value))
@@ -151,7 +156,7 @@ watch(status, (value) => {
 
     <section class="packages">
       <CategoryFilter
-        :categories="categories"
+        :categories="categoriesWithAll"
         :active-id="activeCategory"
         @select="selectCategory"
       />
@@ -167,7 +172,7 @@ watch(status, (value) => {
 
       <template v-else>
         <div v-if="displayedPackages.length" class="packages__grid">
-          <PackageCard v-for="pkg in displayedPackages" :key="pkg.id" :pkg="pkg" />
+          <PackageCard v-for="pkg in displayedPackages" :key="pkg.package_id" :pkg="pkg" />
         </div>
         <div v-else class="packages__state">
           <p>No packages in this category yet.</p>
