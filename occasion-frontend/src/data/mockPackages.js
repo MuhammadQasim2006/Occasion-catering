@@ -171,32 +171,185 @@ export function fetchPackageById(id, { delay = 400, shouldFail = false } = {}) {
 // Menu items available for customisation — NOT a real table yet (flagged in
 // the header note above: menu customisation isn't modelled in database.sql
 // as of this writing). Grouped by course so the detail page can render
-// starters/mains/desserts sections. Keyed by package_id since different
-// packages offer different menu options; falls back to a shared default set
-// for any package_id not listed here.
+// starters/mains/desserts sections. Keyed by package_id since each package
+// has its own menu tailored to its event type (a wedding menu should not
+// look like a boxed corporate lunch) — falls back to defaultMenuItems for
+// any package_id not listed below.
 const defaultMenuItems = {
   starters: [
-    { id: 'st-1', name: 'Butternut & Sage Soup', dietary: ['veg'] },
-    { id: 'st-2', name: 'Biltong & Fig Salad', dietary: [] },
-    { id: 'st-3', name: 'Roasted Beet Carpaccio', dietary: ['veg', 'gf'] },
+    { id: 'st-1', name: 'Butternut & Sage Soup', dietary: ['veg', 'halal'] },
+    { id: 'st-2', name: 'Biltong & Fig Salad', dietary: ['halal'] },
+    { id: 'st-3', name: 'Roasted Beet Carpaccio', dietary: ['veg', 'gf', 'halal'] },
   ],
   mains: [
-    { id: 'mn-1', name: 'Slow-Roasted Lamb Shoulder', dietary: ['gf'] },
-    { id: 'mn-2', name: 'Pan-Seared Kingklip', dietary: ['gf'] },
-    { id: 'mn-3', name: 'Wild Mushroom Risotto', dietary: ['veg'] },
-    { id: 'mn-4', name: 'Free-Range Chicken Ballotine', dietary: [] },
+    { id: 'mn-1', name: 'Slow-Roasted Lamb Shoulder', dietary: ['gf', 'halal'] },
+    { id: 'mn-2', name: 'Pan-Seared Kingklip', dietary: ['gf', 'halal'] },
+    { id: 'mn-3', name: 'Wild Mushroom Risotto', dietary: ['veg', 'halal'] },
+    { id: 'mn-4', name: 'Free-Range Chicken Ballotine', dietary: ['halal'] },
   ],
   desserts: [
-    { id: 'ds-1', name: 'Malva Pudding & Custard', dietary: ['veg'] },
-    { id: 'ds-2', name: 'Dark Chocolate Torte', dietary: ['veg', 'gf'] },
-    { id: 'ds-3', name: 'Seasonal Fruit Platter', dietary: ['veg', 'vegan', 'gf'] },
+    { id: 'ds-1', name: 'Malva Pudding & Custard', dietary: ['veg', 'halal'] },
+    { id: 'ds-2', name: 'Dark Chocolate Torte', dietary: ['veg', 'gf', 'halal'] },
+    { id: 'ds-3', name: 'Seasonal Fruit Platter', dietary: ['veg', 'vegan', 'gf', 'halal'] },
   ],
 }
 
 const menuItemsByPackage = {
-  1: defaultMenuItems,
-  3: defaultMenuItems,
-  7: defaultMenuItems,
+  // 1 — Executive Wedding: full-service plated wedding classics.
+  1: {
+    starters: [
+      { id: 'w1-st-1', name: 'Butternut & Sage Soup', dietary: ['veg', 'halal'] },
+      { id: 'w1-st-2', name: 'Biltong & Fig Salad', dietary: ['halal'] },
+      { id: 'w1-st-3', name: 'Roasted Beet Carpaccio', dietary: ['veg', 'gf', 'halal'] },
+    ],
+    mains: [
+      { id: 'w1-mn-1', name: 'Slow-Roasted Lamb Shoulder', dietary: ['gf', 'halal'] },
+      { id: 'w1-mn-2', name: 'Pan-Seared Kingklip', dietary: ['gf', 'halal'] },
+      { id: 'w1-mn-3', name: 'Wild Mushroom Risotto', dietary: ['veg', 'halal'] },
+      { id: 'w1-mn-4', name: 'Free-Range Chicken Ballotine', dietary: ['halal'] },
+    ],
+    desserts: [
+      { id: 'w1-ds-1', name: 'Malva Pudding & Custard', dietary: ['veg', 'halal'] },
+      { id: 'w1-ds-2', name: 'Dark Chocolate Torte', dietary: ['veg', 'gf', 'halal'] },
+      { id: 'w1-ds-3', name: 'Vanilla Bean Wedding Cake Slice', dietary: ['veg', 'halal'] },
+    ],
+  },
+
+  // 2 — Corporate Brunch: buffet-style morning spread for meetings/launches.
+  2: {
+    starters: [
+      { id: 'c2-st-1', name: 'Fresh Fruit & Granola Cups', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+      { id: 'c2-st-2', name: 'Mini Croissants & Danish Pastries', dietary: ['veg', 'halal'] },
+      { id: 'c2-st-3', name: 'Smoked Salmon Bagel Bites', dietary: ['halal'] },
+    ],
+    mains: [
+      { id: 'c2-mn-1', name: 'Baked Eggs Florentine', dietary: ['veg', 'halal'] },
+      { id: 'c2-mn-2', name: 'Beef Rasher & Cheese Frittata', dietary: ['gf', 'halal'] },
+      { id: 'c2-mn-3', name: 'Avocado & Halloumi Toast', dietary: ['veg', 'halal'] },
+      { id: 'c2-mn-4', name: 'Chicken & Waffle Sliders', dietary: ['halal'] },
+    ],
+    desserts: [
+      { id: 'c2-ds-1', name: 'Lemon Yoghurt Muffins', dietary: ['veg', 'halal'] },
+      { id: 'c2-ds-2', name: 'Seasonal Fruit Platter', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+      { id: 'c2-ds-3', name: 'Mini Cinnamon Rolls', dietary: ['veg', 'halal'] },
+    ],
+  },
+
+  // 3 — Signature Private: intimate chef-led tasting menu.
+  3: {
+    starters: [
+      { id: 'p3-st-1', name: 'Seared Queen Prawns with Pea Purée', dietary: ['gf', 'halal'] },
+      { id: 'p3-st-2', name: 'Beef Carpaccio, Truffle & Quail Egg', dietary: ['halal'] },
+      { id: 'p3-st-3', name: 'Heirloom Tomato & Burrata', dietary: ['veg', 'halal'] },
+    ],
+    mains: [
+      { id: 'p3-mn-1', name: 'Dry-Aged Sirloin, Rosemary Jus', dietary: ['gf', 'halal'] },
+      { id: 'p3-mn-2', name: 'Miso-Glazed Black Cod', dietary: ['gf', 'halal'] },
+      { id: 'p3-mn-3', name: 'Truffle & Parmesan Tortellini', dietary: ['veg', 'halal'] },
+    ],
+    desserts: [
+      { id: 'p3-ds-1', name: 'Deconstructed Tiramisu', dietary: ['veg', 'halal'] },
+      { id: 'p3-ds-2', name: 'Valrhona Chocolate Fondant', dietary: ['veg', 'halal'] },
+      { id: 'p3-ds-3', name: 'Passionfruit & Yuzu Sorbet', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+    ],
+  },
+
+  // 4 — Winelands Harvest: farm-style sharing platters for tour groups.
+  4: {
+    starters: [
+      { id: 't4-st-1', name: 'Farm Bread & Cultured Butter Board', dietary: ['veg', 'halal'] },
+      { id: 't4-st-2', name: 'Cured Meats & Preserves Platter', dietary: ['gf', 'halal'] },
+      { id: 't4-st-3', name: 'Marinated Olives & Farm Cheeses', dietary: ['veg', 'gf', 'halal'] },
+    ],
+    mains: [
+      { id: 't4-mn-1', name: 'Wood-Fired Boerewors & Chutney', dietary: ['gf', 'halal'] },
+      { id: 't4-mn-2', name: 'Harvest Vegetable Tart', dietary: ['veg', 'halal'] },
+      { id: 't4-mn-3', name: 'Grilled Chicken & Peri Peri Basting', dietary: ['gf', 'halal'] },
+    ],
+    desserts: [
+      { id: 't4-ds-1', name: 'Rustic Apple & Cinnamon Crumble', dietary: ['veg', 'halal'] },
+      { id: 't4-ds-2', name: 'Farm Honey & Ricotta Tart', dietary: ['veg', 'halal'] },
+      { id: 't4-ds-3', name: 'Seasonal Vineyard Fruit Bowl', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+    ],
+  },
+
+  // 5 — Garden Celebration: relaxed outdoor wedding, veg/vegan-forward.
+  5: {
+    starters: [
+      { id: 'w5-st-1', name: 'Heirloom Tomato Gazpacho', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+      { id: 'w5-st-2', name: 'Grilled Peach & Burrata Salad', dietary: ['veg', 'gf', 'halal'] },
+      { id: 'w5-st-3', name: 'Chargrilled Asparagus & Lemon Oil', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+    ],
+    mains: [
+      { id: 'w5-mn-1', name: 'Herb-Crusted Vegetable Wellington', dietary: ['veg', 'vegan', 'halal'] },
+      { id: 'w5-mn-2', name: 'Lemon & Thyme Roast Chicken', dietary: ['gf', 'halal'] },
+      { id: 'w5-mn-3', name: 'Grilled Line Fish, Salsa Verde', dietary: ['gf', 'halal'] },
+      { id: 'w5-mn-4', name: 'Chickpea & Butternut Tagine', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+    ],
+    desserts: [
+      { id: 'w5-ds-1', name: 'Lavender Panna Cotta', dietary: ['veg', 'gf', 'halal'] },
+      { id: 'w5-ds-2', name: 'Vegan Berry Pavlova', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+      { id: 'w5-ds-3', name: 'Garden Herb Lemon Tart', dietary: ['veg', 'halal'] },
+    ],
+  },
+
+  // 6 — Boardroom Lunch: individually boxed, allergen-labelled lunches.
+  6: {
+    starters: [
+      { id: 'c6-st-1', name: 'Garden Side Salad, Boxed', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+      { id: 'c6-st-2', name: 'Butternut Soup Cup', dietary: ['veg', 'gf', 'halal'] },
+      { id: 'c6-st-3', name: 'Hummus & Crudité Box', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+    ],
+    mains: [
+      { id: 'c6-mn-1', name: 'Chicken Mayo Sandwich Box', dietary: ['halal'] },
+      { id: 'c6-mn-2', name: 'Falafel & Tahini Wrap', dietary: ['veg', 'vegan', 'halal'] },
+      { id: 'c6-mn-3', name: 'Grilled Steak Sandwich Box', dietary: ['halal'] },
+      { id: 'c6-mn-4', name: 'Quinoa & Roast Veg Bowl', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+    ],
+    desserts: [
+      { id: 'c6-ds-1', name: 'Boxed Brownie Bite', dietary: ['veg', 'halal'] },
+      { id: 'c6-ds-2', name: 'Fresh Fruit Cup', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+      { id: 'c6-ds-3', name: 'Oat & Berry Slice', dietary: ['veg', 'vegan', 'halal'] },
+    ],
+  },
+
+  // 7 — Candlelit Anniversary: romantic five-course set menu for two.
+  7: {
+    starters: [
+      { id: 'p7-st-1', name: 'Charred Prawn Ceviche, Citrus Mignonette', dietary: ['gf', 'halal'] },
+      { id: 'p7-st-2', name: 'Wild Mushroom & Truffle Velouté', dietary: ['veg', 'gf', 'halal'] },
+      { id: 'p7-st-3', name: 'Beetroot-Cured Salmon Gravlax', dietary: ['gf', 'halal'] },
+    ],
+    mains: [
+      { id: 'p7-mn-1', name: 'Rack of Lamb, Rosemary & Red Grape Jus', dietary: ['gf', 'halal'] },
+      { id: 'p7-mn-2', name: 'Butter-Poached Lobster Tail', dietary: ['gf', 'halal'] },
+      { id: 'p7-mn-3', name: 'Wild Mushroom & Truffle Risotto', dietary: ['veg', 'gf', 'halal'] },
+    ],
+    desserts: [
+      { id: 'p7-ds-1', name: 'Molten Chocolate Soufflé for Two', dietary: ['veg', 'halal'] },
+      { id: 'p7-ds-2', name: 'Rose & Raspberry Jelly', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+      { id: 'p7-ds-3', name: 'Vanilla Bean Crème Brûlée', dietary: ['veg', 'gf', 'halal'] },
+    ],
+  },
+
+  // 8 — Safari Sundowner: canapés and drinks timed to golden hour.
+  8: {
+    starters: [
+      { id: 't8-st-1', name: 'Biltong & Cream Cheese Canapés', dietary: ['halal'] },
+      { id: 't8-st-2', name: 'Smoked Springbok Carpaccio Bites', dietary: ['gf', 'halal'] },
+      { id: 't8-st-3', name: 'Roasted Butternut & Feta Skewers', dietary: ['veg', 'gf', 'halal'] },
+    ],
+    mains: [
+      { id: 't8-mn-1', name: 'Mini Boerewors Rolls', dietary: ['halal'] },
+      { id: 't8-mn-2', name: 'Peri Peri Chicken Skewers', dietary: ['gf', 'halal'] },
+      { id: 't8-mn-3', name: 'Grilled Halloumi & Vegetable Skewers', dietary: ['veg', 'gf', 'halal'] },
+    ],
+    desserts: [
+      { id: 't8-ds-1', name: 'Salted Caramel Chocolate Mousse Shots', dietary: ['veg', 'halal'] },
+      { id: 't8-ds-2', name: 'Rooibos-Poached Fruit Skewers', dietary: ['veg', 'vegan', 'gf', 'halal'] },
+      { id: 't8-ds-3', name: 'Malva Pudding Bites', dietary: ['veg', 'halal'] },
+    ],
+  },
 }
 
 // Simulates GET /api/packages/:id/menu-items (or however the real endpoint

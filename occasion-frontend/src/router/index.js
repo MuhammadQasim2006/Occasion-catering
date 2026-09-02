@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import PlaceholderView from '../views/PlaceholderView.vue'
 import Packages from '../views/Packages.vue'
 import PackageDetail from '../views/PackageDetail.vue'
+import Cart from '../views/Cart.vue'
 import Checkout from '../views/Checkout.vue'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
@@ -78,8 +79,7 @@ const router = createRouter({
     {
       path: '/cart',
       name: 'cart',
-      component: PlaceholderView,
-      props: { title: 'Your Cart' },
+      component: Cart,
     },
     {
       path: '/packages/:id',
