@@ -1,19 +1,12 @@
 <script setup>
 import { RouterLink } from 'vue-router'
-import { useCartStore } from '@/stores/cart'
 
-const props = defineProps({
+defineProps({
   pkg: {
     type: Object,
     required: true,
   },
 })
-
-const cart = useCartStore()
-
-function handleViewPackage() {
-  cart.addItem(props.pkg)
-}
 </script>
 
 <template>
@@ -31,11 +24,7 @@ function handleViewPackage() {
         <li>{{ pkg.courses }}</li>
         <li class="package-card__feature">{{ pkg.feature }}</li>
       </ul>
-      <RouterLink
-        :to="`/packages/${pkg.package_id}`"
-        class="package-card__cta"
-        @click="handleViewPackage"
-      >
+      <RouterLink :to="`/packages/${pkg.package_id}`" class="package-card__cta">
         View Package
       </RouterLink>
     </div>

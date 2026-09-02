@@ -149,3 +149,62 @@ export function fetchPackages({ delay = 500, shouldFail = false } = {}) {
     }, delay)
   })
 }
+
+// Simulates GET /api/packages/:id.
+export function fetchPackageById(id, { delay = 400, shouldFail = false } = {}) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (shouldFail) {
+        reject(new Error('Network error'))
+        return
+      }
+      const pkg = packages.find((p) => String(p.package_id) === String(id))
+      if (!pkg) {
+        reject(new Error('Package not found'))
+        return
+      }
+      resolve(pkg)
+    }, delay)
+  })
+}
+
+// Menu items available for customisation — NOT a real table yet (flagged in
+// the header note above: menu customisation isn't modelled in database.sql
+// as of this writing). Grouped by course so the detail page can render
+// starters/mains/desserts sections. Keyed by package_id since different
+// packages offer different menu options; falls back to a shared default set
+// for any package_id not listed here.
+const defaultMenuItems = {
+  starters: [
+    { id: 'st-1', name: 'Butternut & Sage Soup', dietary: ['veg'] },
+    { id: 'st-2', name: 'Biltong & Fig Salad', dietary: [] },
+    { id: 'st-3', name: 'Roasted Beet Carpaccio', dietary: ['veg', 'gf'] },
+  ],
+  mains: [
+    { id: 'mn-1', name: 'Slow-Roasted Lamb Shoulder', dietary: ['gf'] },
+    { id: 'mn-2', name: 'Pan-Seared Kingklip', dietary: ['gf'] },
+    { id: 'mn-3', name: 'Wild Mushroom Risotto', dietary: ['veg'] },
+    { id: 'mn-4', name: 'Free-Range Chicken Ballotine', dietary: [] },
+  ],
+  desserts: [
+    { id: 'ds-1', name: 'Malva Pudding & Custard', dietary: ['veg'] },
+    { id: 'ds-2', name: 'Dark Chocolate Torte', dietary: ['veg', 'gf'] },
+    { id: 'ds-3', name: 'Seasonal Fruit Platter', dietary: ['veg', 'vegan', 'gf'] },
+  ],
+}
+
+const menuItemsByPackage = {
+  1: defaultMenuItems,
+  3: defaultMenuItems,
+  7: defaultMenuItems,
+}
+
+// Simulates GET /api/packages/:id/menu-items (or however the real endpoint
+// ends up shaped — see note above, this isn't in database.sql yet).
+export function fetchMenuItems(packageId, { delay = 350 } = {}) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(menuItemsByPackage[packageId] || defaultMenuItems)
+    }, delay)
+  })
+}
