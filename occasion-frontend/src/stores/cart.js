@@ -10,5 +10,13 @@ export const useCartStore = defineStore('cart', () => {
     items.value.push(pkg)
   }
 
-  return { items, count, addItem }
+  function removeItem(index) {
+    items.value.splice(index, 1)
+  }
+
+  function clear() {
+    items.value = []
+  }
+
+  return { items, count, addItem, removeItem, clear }
 })

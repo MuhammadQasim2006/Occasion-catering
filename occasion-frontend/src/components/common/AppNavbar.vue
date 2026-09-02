@@ -1,19 +1,37 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
+import { useAuthStore } from '@/stores/auth'
 
 const cart = useCartStore()
+const auth = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 const isMenuOpen = ref(false)
+
+function handleLogout() {
+  auth.logout()
+  closeMenu()
+  router.push('/')
+}
 
 const navLinks = [
   { to: '/', label: 'Home' },
+  { to: '/packages', label: 'Packages' },
   { to: '/large-events', label: 'Large Events' },
   { to: '/small-events', label: 'Small Events' },
   { to: '/tours', label: 'Tours' },
   { to: '/about', label: 'About' },
 ]
+
+const searchQuery = ref('')
+
+function handleSearch() {
+  if (!searchQuery.value.trim()) return
+  router.push({ path: '/packages', query: { q: searchQuery.value.trim() } })
+  closeMenu()
+}
 
 function closeMenu() {
   isMenuOpen.value = false
@@ -64,7 +82,12 @@ watch(() => route.fullPath, closeMenu)
           <circle cx="11" cy="11" r="7" stroke="var(--color-muted)" stroke-width="1.8" />
           <path d="m20 20-3.2-3.2" stroke="var(--color-muted)" stroke-width="1.8" stroke-linecap="round" />
         </svg>
-        <input type="search" placeholder="Search packages, events, tours..." />
+        <input
+          v-model="searchQuery"
+          type="search"
+          placeholder="Search packages, events, tours..."
+          @keyup.enter="handleSearch"
+        />
       </label>
 
       <div class="navbar__actions">
@@ -82,8 +105,17 @@ watch(() => route.fullPath, closeMenu)
           </svg>
           <span v-if="cart.count" class="navbar__cart-badge" aria-hidden="true">{{ cart.count }}</span>
         </RouterLink>
-        <RouterLink to="/login" class="navbar__login">Login</RouterLink>
-        <RouterLink to="/register" class="navbar__signup">Sign Up</RouterLink>
+        <template v-if="auth.isLoggedIn">
+          <RouterLink to="/dashboard" class="navbar__account" :title="auth.user?.email">
+            <span class="navbar__account-dot" aria-hidden="true"></span>
+            <span class="navbar__account-email">{{ auth.user?.email }}</span>
+          </RouterLink>
+          <button type="button" class="navbar__logout" @click="handleLogout">Logout</button>
+        </template>
+        <template v-else>
+          <RouterLink to="/login" class="navbar__login">Login</RouterLink>
+          <RouterLink to="/register" class="navbar__signup">Sign Up</RouterLink>
+        </template>
       </div>
     </div>
 
@@ -123,10 +155,21 @@ watch(() => route.fullPath, closeMenu)
           {{ link.label }}
         </RouterLink>
         <div class="navbar__mobile-divider"></div>
-        <RouterLink to="/login" class="navbar__mobile-link">Login</RouterLink>
-        <RouterLink to="/register" class="navbar__mobile-link navbar__mobile-link--signup">
-          Sign Up
-        </RouterLink>
+        <template v-if="auth.isLoggedIn">
+          <RouterLink to="/dashboard" class="navbar__mobile-link navbar__mobile-account">
+            <span class="navbar__account-dot" aria-hidden="true"></span>
+            {{ auth.user?.email }}
+          </RouterLink>
+          <button type="button" class="navbar__mobile-link navbar__mobile-logout" @click="handleLogout">
+            Logout
+          </button>
+        </template>
+        <template v-else>
+          <RouterLink to="/login" class="navbar__mobile-link">Login</RouterLink>
+          <RouterLink to="/register" class="navbar__mobile-link navbar__mobile-link--signup">
+            Sign Up
+          </RouterLink>
+        </template>
       </nav>
     </Transition>
   </header>
@@ -266,6 +309,64 @@ watch(() => route.fullPath, closeMenu)
   white-space: nowrap;
 }
 
+.navbar__account {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-full);
+  padding: 0.45rem 0.9rem 0.45rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  max-width: 160px;
+}
+
+.navbar__account-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #3e9a5f;
+  flex-shrink: 0;
+}
+
+.navbar__account-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navbar__logout {
+  background: none;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+.navbar__logout:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+.navbar__mobile-account {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.navbar__mobile-logout {
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
 .navbar__links {
   max-width: var(--content-width);
   margin: 0 auto;
@@ -369,8 +470,21 @@ watch(() => route.fullPath, closeMenu)
   }
 }
 
+@media (max-width: 880px) {
+  .navbar__account-email {
+    display: none;
+  }
+  .navbar__account {
+    padding: 0.5rem;
+  }
+}
+
 @media (max-width: 720px) {
   .navbar__search {
+    display: none;
+  }
+  .navbar__account,
+  .navbar__logout {
     display: none;
   }
   .navbar__hamburger {

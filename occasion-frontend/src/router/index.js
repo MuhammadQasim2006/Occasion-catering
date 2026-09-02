@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import PlaceholderView from '../views/PlaceholderView.vue'
+import Packages from '../views/Packages.vue'
 import PackageDetail from '../views/PackageDetail.vue'
 import Checkout from '../views/Checkout.vue'
 import Login from '../views/Login.vue'
@@ -16,6 +17,11 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+    },
+    {
+      path: '/packages',
+      name: 'packages',
+      component: Packages,
     },
     {
       path: '/large-events',
