@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
+import AccountMenu from '@/components/common/AccountMenu.vue'
 
 const cart = useCartStore()
 const auth = useAuthStore()
@@ -106,11 +107,7 @@ watch(() => route.fullPath, closeMenu)
           <span v-if="cart.count" class="navbar__cart-badge" aria-hidden="true">{{ cart.count }}</span>
         </RouterLink>
         <template v-if="auth.isLoggedIn">
-          <RouterLink to="/dashboard" class="navbar__account" :title="auth.user?.email">
-            <span class="navbar__account-dot" aria-hidden="true"></span>
-            <span class="navbar__account-email">{{ auth.user?.email }}</span>
-          </RouterLink>
-          <button type="button" class="navbar__logout" @click="handleLogout">Logout</button>
+          <AccountMenu />
         </template>
         <template v-else>
           <RouterLink to="/login" class="navbar__login">Login</RouterLink>
@@ -160,6 +157,8 @@ watch(() => route.fullPath, closeMenu)
             <span class="navbar__account-dot" aria-hidden="true"></span>
             {{ auth.user?.email }}
           </RouterLink>
+          <RouterLink to="/dashboard" class="navbar__mobile-link">Dashboard</RouterLink>
+          <RouterLink to="/bookings" class="navbar__mobile-link">Booking history</RouterLink>
           <button type="button" class="navbar__mobile-link navbar__mobile-logout" @click="handleLogout">
             Logout
           </button>
@@ -309,46 +308,12 @@ watch(() => route.fullPath, closeMenu)
   white-space: nowrap;
 }
 
-.navbar__account {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-full);
-  padding: 0.45rem 0.9rem 0.45rem 0.7rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  max-width: 160px;
-}
-
 .navbar__account-dot {
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
   background: #3e9a5f;
   flex-shrink: 0;
-}
-
-.navbar__account-email {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.navbar__logout {
-  background: none;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-ink);
-  white-space: nowrap;
-}
-
-.navbar__logout:hover {
-  border-color: var(--color-gold);
-  color: var(--color-gold);
 }
 
 .navbar__mobile-account {
@@ -470,21 +435,8 @@ watch(() => route.fullPath, closeMenu)
   }
 }
 
-@media (max-width: 880px) {
-  .navbar__account-email {
-    display: none;
-  }
-  .navbar__account {
-    padding: 0.5rem;
-  }
-}
-
 @media (max-width: 720px) {
   .navbar__search {
-    display: none;
-  }
-  .navbar__account,
-  .navbar__logout {
     display: none;
   }
   .navbar__hamburger {
