@@ -1,8 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { categories, fetchPackages } from '@/data/mockPackages'
-import CategoryFilter from '@/components/packages/CategoryFilter.vue'
+import { fetchPackages } from '@/data/mockPackages'
 import PackageCard from '@/components/packages/PackageCard.vue'
 import PackageCardSkeleton from '@/components/packages/PackageCardSkeleton.vue'
 
@@ -64,15 +63,10 @@ function restartAutoplay() {
 onMounted(restartAutoplay)
 
 // --- Package grid: async load with loading / error / empty states -------
-const activeCategory = ref('all')
-const visibleCount = ref(4)
+// Homepage shows only the curated `featured` set (see mockPackages.js); the
+// full, filterable catalogue lives on the /packages page.
 const allPackages = ref([])
 const status = ref('loading') // 'loading' | 'success' | 'error'
-
-// "All" isn't a real row in the categories table, so it's added here in the
-// view rather than baked into mockPackages.js — that way `categories` stays a
-// direct stand-in for whatever GET /api/categories (or similar) will return.
-const categoriesWithAll = computed(() => [{ category_id: 'all', name: 'All' }, ...categories])
 
 async function loadPackages() {
   status.value = 'loading'
@@ -86,26 +80,7 @@ async function loadPackages() {
 
 onMounted(loadPackages)
 
-const filteredPackages = computed(() => {
-  if (activeCategory.value === 'all') return allPackages.value
-  return allPackages.value.filter((pkg) => pkg.category_id === activeCategory.value)
-})
-
-const displayedPackages = computed(() => filteredPackages.value.slice(0, visibleCount.value))
-const hasMore = computed(() => visibleCount.value < filteredPackages.value.length)
-
-function selectCategory(id) {
-  activeCategory.value = id
-  visibleCount.value = 4
-}
-
-function loadMore() {
-  visibleCount.value += 4
-}
-
-watch(status, (value) => {
-  if (value === 'success') visibleCount.value = 4
-})
+const featuredPackages = computed(() => allPackages.value.filter((pkg) => pkg.featured))
 </script>
 
 <template>
@@ -155,11 +130,13 @@ watch(status, (value) => {
     </section>
 
     <section class="packages">
-      <CategoryFilter
-        :categories="categoriesWithAll"
-        :active-id="activeCategory"
-        @select="selectCategory"
-      />
+      <div class="packages__header">
+        <div>
+          <p class="packages__eyebrow">Handpicked For You</p>
+          <h2 class="packages__title">Featured Packages</h2>
+        </div>
+        <RouterLink to="/packages" class="packages__view-all">View All Packages →</RouterLink>
+      </div>
 
       <div v-if="status === 'loading'" class="packages__grid" aria-busy="true">
         <PackageCardSkeleton v-for="n in 4" :key="n" />
@@ -171,17 +148,13 @@ watch(status, (value) => {
       </div>
 
       <template v-else>
-        <div v-if="displayedPackages.length" class="packages__grid">
-          <PackageCard v-for="pkg in displayedPackages" :key="pkg.package_id" :pkg="pkg" />
+        <div v-if="featuredPackages.length" class="packages__grid">
+          <PackageCard v-for="pkg in featuredPackages" :key="pkg.package_id" :pkg="pkg" />
         </div>
         <div v-else class="packages__state">
-          <p>No packages in this category yet.</p>
-          <button class="packages__retry" @click="selectCategory('all')">
-            View All Packages
-          </button>
+          <p>No featured packages right now.</p>
+          <RouterLink to="/packages" class="packages__retry">View All Packages</RouterLink>
         </div>
-
-        <button v-if="hasMore" class="packages__load-more" @click="loadMore">Load More</button>
       </template>
     </section>
 
@@ -355,6 +328,38 @@ main {
   gap: 1.75rem;
 }
 
+.packages__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.packages__eyebrow {
+  color: var(--color-gold);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+}
+
+.packages__title {
+  font-size: 1.7rem;
+}
+
+.packages__view-all {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-brown);
+  white-space: nowrap;
+}
+
+.packages__view-all:hover {
+  color: var(--color-gold);
+}
+
 .packages__grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -382,22 +387,6 @@ main {
 }
 
 .packages__retry:hover {
-  border-color: var(--color-gold);
-  color: var(--color-gold);
-}
-
-.packages__load-more {
-  align-self: center;
-  background: transparent;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-full);
-  padding: 0.65rem 1.75rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-brown);
-}
-
-.packages__load-more:hover {
   border-color: var(--color-gold);
   color: var(--color-gold);
 }

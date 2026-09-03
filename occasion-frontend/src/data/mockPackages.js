@@ -9,8 +9,10 @@
 //                       base_price, event_size ('large' | 'small' | 'tour'),
 //                       image_url
 //
-// A few fields below (guests, courses, feature, badge) are NOT columns in the
-// real schema — they're presentation-only placeholders. guest_count actually
+// A few fields below (guests, courses, feature, badge, featured) are NOT
+// columns in the real schema — they're presentation-only placeholders.
+// `featured` marks the curated set shown on the homepage; the full catalogue
+// (all packages, filterable) lives on the /packages page. guest_count actually
 // lives on the Bookings table (it's chosen per-booking, not fixed per package),
 // and "courses"/"feature" aren't modelled anywhere yet. Flagging this so nobody
 // assumes the API will just start returning them — check with Qaasim before the
@@ -39,6 +41,7 @@ export const packages = [
     courses: '3 Courses',
     feature: 'Setup Included',
     badge: 'Popular',
+    featured: true,
   },
   {
     package_id: 2,
@@ -66,6 +69,7 @@ export const packages = [
     courses: '3 Courses',
     feature: 'Premium Service',
     badge: 'New',
+    featured: true,
   },
   {
     package_id: 4,
@@ -79,6 +83,7 @@ export const packages = [
     guests: '40+ Guests',
     courses: '2 Courses',
     feature: 'Delivery Included',
+    featured: true,
   },
   {
     package_id: 5,
@@ -105,6 +110,7 @@ export const packages = [
     guests: '10+ Guests',
     courses: '1 Course',
     feature: 'Delivery Included',
+    featured: true,
   },
   {
     package_id: 7,
