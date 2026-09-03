@@ -1,16 +1,16 @@
-const { Category, CateringPackage } = require("./src/models");
+const { CateringPackage } = require("./src/models");
 
-async function testCategoryPackages() {
+async function testPackageMenuItems() {
   try {
-    const category = await Category.findOne({
-      where: { category_id: 1 },
-      include: CateringPackage,
+    const packageData = await CateringPackage.findOne({
+      where: { package_id: 1 },
+      include: "MenuItems",
     });
 
-    console.log(JSON.stringify(category.toJSON(), null, 2));
+    console.log(JSON.stringify(packageData.toJSON(), null, 2));
   } catch (error) {
     console.error("Error:", error.message);
   }
 }
 
-testCategoryPackages();
+testPackageMenuItems();
