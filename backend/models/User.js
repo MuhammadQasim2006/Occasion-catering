@@ -1,33 +1,36 @@
 const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database'); // Adjust path to your database setup
+const sequelize = require('../config/db');
 
 const User = sequelize.define('User', {
-  id: {
+  user_id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
   },
-  name: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
   email: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(255),
     allowNull: false,
     unique: true,
-    validate: { isEmail: true }
+    validate: {
+      isEmail: true
+    }
   },
-  password: {
-    type: DataTypes.STRING,
+  password_hash: {
+    type: DataTypes.STRING(255),
     allowNull: false
   },
   role: {
-    type: DataTypes.STRING,
+    type: DataTypes.ENUM('customer', 'admin'),
+    allowNull: false,
     defaultValue: 'customer'
+  },
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   }
 }, {
-  tableName: 'Users',
-  timestamps: true
+  tableName: 'users',
+  timestamps: false
 });
 
 module.exports = User;
