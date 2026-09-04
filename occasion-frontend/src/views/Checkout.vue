@@ -19,6 +19,7 @@ const eventDate = ref('')
 const eventTime = ref('')
 const specialRequests = ref('')
 const contactName = ref('')
+const contactEmail = ref('')
 const contactPhone = ref('')
 
 const error = ref('')
@@ -52,8 +53,12 @@ function handleSubmit() {
     error.value = 'Guest count must be at least 1.'
     return
   }
-  if (!contactName.value || !contactPhone.value) {
-    error.value = 'Please add a contact name and phone number.'
+  if (!contactName.value || !contactPhone.value || !contactEmail.value) {
+    error.value = 'Please add a contact name, email and phone number.'
+    return
+  }
+  if (!/^\S+@\S+\.\S+$/.test(contactEmail.value)) {
+    error.value = 'Please enter a valid email address.'
     return
   }
 
@@ -66,6 +71,7 @@ function handleSubmit() {
     guest_count: guestCount.value,
     special_requests: specialRequests.value || null,
     contact_name: contactName.value,
+    contact_email: contactEmail.value,
     contact_phone: contactPhone.value,
     status: 'pending_payment',
     total_amount: total.value,
@@ -77,7 +83,10 @@ function handleSubmit() {
   isSubmitting.value = false
 
   const newBookingId = bookings.bookings[bookings.bookings.length - 1].booking_id
-  router.push(`/confirmation/${newBookingId}`)
+  // Goes to the simulated payment step for now (src/views/Payment.vue).
+  // Swap this line for a POST /api/payments/initiate + PayFast redirect
+  // once the real sandbox integration is wired in (Day 7).
+  router.push(`/payment/${newBookingId}`)
 }
 </script>
 
@@ -152,6 +161,18 @@ function handleSubmit() {
               <input v-model="contactPhone" type="tel" placeholder="e.g. 082 123 4567" required />
             </label>
           </div>
+
+          <label class="checkout__field">
+            <span class="checkout__label">Email Address</span>
+            <input
+              v-model="contactEmail"
+              type="email"
+              placeholder="you@example.com"
+              autocomplete="email"
+              required
+            />
+            <span class="checkout__hint">We'll send your booking confirmation here.</span>
+          </label>
         </section>
       </div>
 
@@ -317,6 +338,11 @@ function handleSubmit() {
 
 .checkout__field textarea {
   resize: vertical;
+}
+
+.checkout__hint {
+  font-size: 0.78rem;
+  color: var(--color-muted);
 }
 
 .checkout__stepper {

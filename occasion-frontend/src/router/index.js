@@ -5,6 +5,7 @@ import Packages from '../views/Packages.vue'
 import PackageDetail from '../views/PackageDetail.vue'
 import Cart from '../views/Cart.vue'
 import Checkout from '../views/Checkout.vue'
+import Payment from '../views/Payment.vue'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import Dashboard from '../views/Dashboard.vue'
@@ -90,6 +91,11 @@ const router = createRouter({
       path: '/checkout',
       name: 'checkout',
       component: Checkout,
+    },
+    {
+      path: '/payment/:bookingId',
+      name: 'payment',
+      component: Payment,
     },
     {
       path: '/dashboard',

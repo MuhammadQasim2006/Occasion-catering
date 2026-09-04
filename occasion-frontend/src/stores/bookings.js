@@ -13,6 +13,7 @@ const mockBookings = [
     guest_count: 80,
     special_requests: null,
     contact_name: 'Thandeka Nkosi',
+    contact_email: 'thandeka.nkosi@example.com',
     contact_phone: '083 555 0199',
     status: 'confirmed',
     total_amount: 16800,
@@ -63,5 +64,14 @@ export const useBookingsStore = defineStore('bookings', () => {
     if (booking) booking.status = 'cancelled'
   }
 
-  return { bookings, addBooking, cancelBooking }
+  // Used by the simulated payment page (src/views/Payment.vue) to flip a
+  // booking's status locally. Once real PayFast ITN handling lands (Day 7),
+  // this becomes unnecessary — the backend will update status via the
+  // notify webhook and the frontend will just poll GET /api/payments/:bookingId.
+  function updateStatus(bookingId, status) {
+    const booking = bookings.value.find((b) => b.booking_id === bookingId)
+    if (booking) booking.status = status
+  }
+
+  return { bookings, addBooking, cancelBooking, updateStatus }
 })
