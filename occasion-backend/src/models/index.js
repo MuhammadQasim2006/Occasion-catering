@@ -7,6 +7,7 @@ const TourOperator = require("./TourOperator");
 const TourPackage = require("./TourPackage");
 const Booking = require("./Booking");
 const BookingItem = require("./BookingItem");
+const Payment = require("./Payment");
 
 // User ↔ Customer
 User.hasOne(Customer, {
@@ -89,6 +90,15 @@ BookingItem.belongsTo(MenuItem, {
   foreignKey: "menu_item_id",
 });
 
+// Booking ↔ Payment
+Booking.hasOne(Payment, {
+  foreignKey: "booking_id",
+});
+
+Payment.belongsTo(Booking, {
+  foreignKey: "booking_id",
+});
+
 module.exports = {
   User,
   Customer,
@@ -99,4 +109,5 @@ module.exports = {
   TourPackage,
   Booking,
   BookingItem,
+  Payment,
 };
