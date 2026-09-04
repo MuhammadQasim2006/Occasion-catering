@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 
 const packageRoutes = require("./routes/packageRoutes");
+const bookingRoutes = require("./routes/bookingRoutes");
 
 const app = express();
 
@@ -15,5 +16,6 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/packages", packageRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 module.exports = app;
