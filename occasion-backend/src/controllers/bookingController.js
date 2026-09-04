@@ -4,6 +4,7 @@ const {
   BookingItem,
   CateringPackage,
   MenuItem,
+  Payment,
 } = require("../models");
 
 const sequelize = require("../config/db");
@@ -109,9 +110,7 @@ async function createBooking(req, res) {
       });
     }
 
-    const selectedMenuItemIds = [
-      ...new Set(menu_item_ids),
-    ];
+    const selectedMenuItemIds = [...new Set(menu_item_ids)];
 
     const selectedMenuItems = cateringPackage.MenuItems.filter(
       (menuItem) =>
@@ -202,6 +201,9 @@ async function createBooking(req, res) {
               },
             ],
           },
+          {
+            model: Payment,
+          },
         ],
       }
     );
@@ -220,6 +222,55 @@ async function createBooking(req, res) {
   }
 }
 
+async function getBookingById(req, res) {
+  try {
+    const bookingId = Number(req.params.id);
+
+    if (!Number.isInteger(bookingId) || bookingId <= 0) {
+      return res.status(400).json({
+        message: "Booking ID must be a positive integer",
+      });
+    }
+
+    const booking = await Booking.findByPk(bookingId, {
+      include: [
+        {
+          model: Customer,
+        },
+        {
+          model: BookingItem,
+          include: [
+            {
+              model: CateringPackage,
+            },
+            {
+              model: MenuItem,
+            },
+          ],
+        },
+        {
+          model: Payment,
+        },
+      ],
+    });
+
+    if (!booking) {
+      return res.status(404).json({
+        message: "Booking not found",
+      });
+    }
+
+    return res.status(200).json(booking);
+  } catch (error) {
+    console.error("Error retrieving booking:", error);
+
+    return res.status(500).json({
+      message: "Failed to retrieve booking",
+    });
+  }
+}
+
 module.exports = {
   createBooking,
+  getBookingById,
 };
