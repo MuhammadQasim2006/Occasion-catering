@@ -222,6 +222,63 @@ async function createBooking(req, res) {
   }
 }
 
+async function getCustomerBookings(req, res) {
+  try {
+    const customerId = Number(req.params.customerId);
+
+    if (!Number.isInteger(customerId) || customerId <= 0) {
+      return res.status(400).json({
+        message: "Customer ID must be a positive integer",
+      });
+    }
+
+    const customer = await Customer.findByPk(customerId);
+
+    if (!customer) {
+      return res.status(404).json({
+        message: "Customer not found",
+      });
+    }
+
+    const bookings = await Booking.findAll({
+      where: {
+        customer_id: customerId,
+      },
+      order: [
+        ["event_date", "DESC"],
+        ["booking_id", "DESC"],
+      ],
+      include: [
+        {
+          model: BookingItem,
+          include: [
+            {
+              model: CateringPackage,
+            },
+            {
+              model: MenuItem,
+            },
+          ],
+        },
+        {
+          model: Payment,
+        },
+      ],
+    });
+
+    return res.status(200).json({
+      customer: customer,
+      bookings: bookings,
+    });
+  } catch (error) {
+    console.error("Error retrieving customer bookings:", error);
+
+    return res.status(500).json({
+      message: "Failed to retrieve customer bookings",
+    });
+  }
+}
+
 async function getBookingById(req, res) {
   try {
     const bookingId = Number(req.params.id);
@@ -272,5 +329,6 @@ async function getBookingById(req, res) {
 
 module.exports = {
   createBooking,
+  getCustomerBookings,
   getBookingById,
 };
