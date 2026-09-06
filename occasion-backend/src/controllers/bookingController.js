@@ -9,12 +9,19 @@ const {
 
 const sequelize = require("../config/db");
 
+async function getAuthenticatedCustomer(userId) {
+  return Customer.findOne({
+    where: {
+      user_id: userId,
+    },
+  });
+}
+
 async function createBooking(req, res) {
   const transaction = await sequelize.transaction();
 
   try {
     const {
-      customer_id,
       event_date,
       guest_count,
       event_type,
@@ -22,11 +29,13 @@ async function createBooking(req, res) {
       menu_item_ids = [],
     } = req.body;
 
-    if (!Number.isInteger(customer_id) || customer_id <= 0) {
+    const customer = await getAuthenticatedCustomer(req.user.user_id);
+
+    if (!customer) {
       await transaction.rollback();
 
-      return res.status(400).json({
-        message: "customer_id must be a positive integer",
+      return res.status(404).json({
+        message: "Customer profile not found",
       });
     }
 
@@ -75,18 +84,6 @@ async function createBooking(req, res) {
       });
     }
 
-    const customer = await Customer.findByPk(customer_id, {
-      transaction,
-    });
-
-    if (!customer) {
-      await transaction.rollback();
-
-      return res.status(404).json({
-        message: "Customer not found",
-      });
-    }
-
     const cateringPackage = await CateringPackage.findByPk(package_id, {
       include: [
         {
@@ -118,8 +115,7 @@ async function createBooking(req, res) {
     );
 
     if (
-      selectedMenuItems.length !==
-      selectedMenuItemIds.length
+      selectedMenuItems.length !== selectedMenuItemIds.length
     ) {
       await transaction.rollback();
 
@@ -141,7 +137,7 @@ async function createBooking(req, res) {
 
     const booking = await Booking.create(
       {
-        customer_id,
+        customer_id: customer.customer_id,
         event_date,
         guest_count: parsedGuestCount,
         event_type: event_type.trim(),
@@ -224,25 +220,19 @@ async function createBooking(req, res) {
 
 async function getCustomerBookings(req, res) {
   try {
-    const customerId = Number(req.params.customerId);
-
-    if (!Number.isInteger(customerId) || customerId <= 0) {
-      return res.status(400).json({
-        message: "Customer ID must be a positive integer",
-      });
-    }
-
-    const customer = await Customer.findByPk(customerId);
+    const customer = await getAuthenticatedCustomer(
+      req.user.user_id
+    );
 
     if (!customer) {
       return res.status(404).json({
-        message: "Customer not found",
+        message: "Customer profile not found",
       });
     }
 
     const bookings = await Booking.findAll({
       where: {
-        customer_id: customerId,
+        customer_id: customer.customer_id,
       },
       order: [
         ["event_date", "DESC"],
@@ -267,8 +257,8 @@ async function getCustomerBookings(req, res) {
     });
 
     return res.status(200).json({
-      customer: customer,
-      bookings: bookings,
+      customer,
+      bookings,
     });
   } catch (error) {
     console.error("Error retrieving customer bookings:", error);
@@ -289,7 +279,21 @@ async function getBookingById(req, res) {
       });
     }
 
-    const booking = await Booking.findByPk(bookingId, {
+    const customer = await getAuthenticatedCustomer(
+      req.user.user_id
+    );
+
+    if (!customer) {
+      return res.status(404).json({
+        message: "Customer profile not found",
+      });
+    }
+
+    const booking = await Booking.findOne({
+      where: {
+        booking_id: bookingId,
+        customer_id: customer.customer_id,
+      },
       include: [
         {
           model: Customer,

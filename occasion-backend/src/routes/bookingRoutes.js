@@ -6,13 +6,29 @@ const {
   getBookingById,
 } = require("../controllers/bookingController");
 
+const {
+  authenticateToken,
+} = require("../middleware/authMiddleware");
+
 const router = express.Router();
 
-router.post("/", createBooking);
+router.post(
+  "/",
+  authenticateToken,
+  createBooking
+);
 
-// Must come before /:id so "customer" is not treated as a booking ID.
-router.get("/customer/:customerId", getCustomerBookings);
+router.get(
+  "/customer",
+  authenticateToken,
+  getCustomerBookings
+);
 
-router.get("/:id", getBookingById);
+router.get(
+  "/:id",
+  authenticateToken,
+  getBookingById
+);
 
 module.exports = router;
+c2VyX2lkIjo0LCJyb2xlIjoiY3VzdG9tZXIiLCJpYXQiOjE3ODg2OTY4MDQsImV4cCI6MTc4ODcwNDAwNH0.tN3YkTcfmNfNi4Ut083T_nFr4pEAo1RXtYEwJce96Xg
