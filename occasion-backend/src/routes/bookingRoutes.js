@@ -31,4 +31,3 @@ router.get(
 );
 
 module.exports = router;
-c2VyX2lkIjo0LCJyb2xlIjoiY3VzdG9tZXIiLCJpYXQiOjE3ODg2OTY4MDQsImV4cCI6MTc4ODcwNDAwNH0.tN3YkTcfmNfNi4Ut083T_nFr4pEAo1RXtYEwJce96Xg
