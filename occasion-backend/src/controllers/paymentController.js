@@ -180,6 +180,184 @@ async function createPayment(req, res) {
   }
 }
 
+function buildValidationParameterString(data) {
+  let parameterString = "";
+
+  for (const [key, value] of Object.entries(data)) {
+    if (
+      key === "signature" ||
+      value === "" ||
+      value === null ||
+      value === undefined
+    ) {
+      continue;
+    }
+
+    parameterString +=
+      `${key}=${encodeURIComponent(String(value).trim())}&`;
+  }
+
+  return parameterString.slice(0, -1);
+}
+
+function verifySignature(data) {
+  const receivedSignature = data.signature;
+
+  if (!receivedSignature) {
+    return false;
+  }
+
+  const passphrase = process.env.PAYFAST_PASSPHRASE;
+
+  if (!passphrase) {
+    return false;
+  }
+
+  const parameterString =
+    buildValidationParameterString(data);
+
+  const stringToHash =
+    `${parameterString}&passphrase=${encodeURIComponent(
+      passphrase.trim()
+    )}`;
+
+  const calculatedSignature = crypto
+    .createHash("md5")
+    .update(stringToHash)
+    .digest("hex");
+
+  return crypto.timingSafeEqual(
+    Buffer.from(calculatedSignature, "utf8"),
+    Buffer.from(receivedSignature, "utf8")
+  );
+}
+
+async function handlePaymentNotification(req, res) {
+  try {
+    const notification = req.body;
+
+    if (!notification || typeof notification !== "object") {
+      return res.status(400).send("Invalid notification");
+    }
+
+    if (!verifySignature(notification)) {
+      return res.status(400).send("Invalid signature");
+    }
+
+    const merchantId = process.env.PAYFAST_MERCHANT_ID;
+
+    if (
+      !merchantId ||
+      notification.merchant_id !== merchantId
+    ) {
+      return res.status(400).send("Invalid merchant");
+    }
+
+    const merchantPaymentId = notification.m_payment_id;
+
+    if (!merchantPaymentId) {
+      return res.status(400).send("Missing payment ID");
+    }
+
+    const payment = await Payment.findOne({
+      where: {
+        merchant_payment_id: merchantPaymentId,
+      },
+      include: [
+        {
+          model: Booking,
+        },
+      ],
+    });
+
+    if (!payment) {
+      return res.status(404).send("Payment not found");
+    }
+
+    const receivedAmount = Number(notification.amount);
+    const expectedAmount = Number(payment.amount);
+
+    if (
+      !Number.isFinite(receivedAmount) ||
+      receivedAmount.toFixed(2) !==
+        expectedAmount.toFixed(2)
+    ) {
+      return res.status(400).send("Invalid amount");
+    }
+
+    const paymentStatus =
+      notification.payment_status;
+
+    const rawPayload =
+      JSON.stringify(notification);
+
+    if (paymentStatus === "COMPLETE") {
+      await payment.update({
+        status: "complete",
+        gateway_payment_id:
+          notification.pf_payment_id || null,
+        itn_verified: true,
+        raw_itn_payload: rawPayload,
+        paid_at: new Date(),
+      });
+
+      await Booking.update(
+        {
+          status: "confirmed",
+        },
+        {
+          where: {
+            booking_id: payment.booking_id,
+          },
+        }
+      );
+
+      return res.status(200).send("OK");
+    }
+
+    if (paymentStatus === "CANCELLED") {
+      await payment.update({
+        status: "cancelled",
+        gateway_payment_id:
+          notification.pf_payment_id || null,
+        itn_verified: true,
+        raw_itn_payload: rawPayload,
+      });
+
+      await Booking.update(
+        {
+          status: "cancelled",
+        },
+        {
+          where: {
+            booking_id: payment.booking_id,
+          },
+        }
+      );
+
+      return res.status(200).send("OK");
+    }
+
+    await payment.update({
+      status: "pending",
+      gateway_payment_id:
+        notification.pf_payment_id || null,
+      itn_verified: true,
+      raw_itn_payload: rawPayload,
+    });
+
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.error(
+      "Error processing PayFast notification:",
+      error
+    );
+
+    return res.status(500).send("Notification processing failed");
+  }
+}
+
 module.exports = {
   createPayment,
+  handlePaymentNotification,
 };
