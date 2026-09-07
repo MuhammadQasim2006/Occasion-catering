@@ -2,6 +2,7 @@ const express = require("express");
 
 const {
   getAllBookings,
+  updateBookingStatus,
 } = require("../controllers/adminController");
 
 const {
@@ -16,6 +17,13 @@ router.get(
   authenticateToken,
   requireAdmin,
   getAllBookings
+);
+
+router.patch(
+  "/bookings/:id/status",
+  authenticateToken,
+  requireAdmin,
+  updateBookingStatus
 );
 
 module.exports = router;
