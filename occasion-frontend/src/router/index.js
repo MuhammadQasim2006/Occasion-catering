@@ -13,6 +13,11 @@ import BookingHistory from '../views/BookingHistory.vue'
 import Confirmation from '../views/Confirmation.vue'
 import AboutView from '../views/AboutView.vue'
 
+// Import the new pages
+import LargeEvents from '../views/LargeEvents.vue'
+import SmallEvents from '../views/SmallEvents.vue'
+import Tours from '../views/Tours.vue'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -29,20 +34,17 @@ const router = createRouter({
     {
       path: '/large-events',
       name: 'large-events',
-      component: PlaceholderView,
-      props: { title: 'Large Events' },
+      component: LargeEvents,
     },
     {
       path: '/small-events',
       name: 'small-events',
-      component: PlaceholderView,
-      props: { title: 'Small Events' },
+      component: SmallEvents,
     },
     {
       path: '/tours',
       name: 'tours',
-      component: PlaceholderView,
-      props: { title: 'Tours' },
+      component: Tours,
     },
     {
       path: '/about',

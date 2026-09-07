@@ -9,7 +9,7 @@ import { useCartStore } from '@/stores/cart'
 // so totals here are computed per item rather than off a single shared
 // guest count.
 
-const router = useRouter()
+const router = useRouter() 
 const cart = useCartStore()
 
 const serviceFee = computed(() => Math.round(cart.subtotal * 0.05))
