@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { useBookingsStore } from '@/stores/bookings'
+import { useAuthStore } from '@/stores/auth'
+import { validateCoupon } from '@/utils/coupons'
 
 // Shell for the checkout/booking flow — guest count, date selection, summary,
 // then POST /api/bookings (see API contract draft, TICKET-013). Payment
@@ -13,13 +15,22 @@ import { useBookingsStore } from '@/stores/bookings'
 const router = useRouter()
 const cart = useCartStore()
 const bookings = useBookingsStore()
+const auth = useAuthStore()
 
-const guestCount = ref(20)
+// Default to the guest count already set per-package on PackageDetail/Cart
+// (the largest of them, if packages differ) rather than a fixed 20, so the
+// number shown here doesn't silently disagree with what the customer saw
+// in their cart.
+const cartGuestCounts = cart.items.map((item) => item.guest_count).filter(Boolean)
+const guestCount = ref(cartGuestCounts.length ? Math.max(...cartGuestCounts) : 20)
 const eventDate = ref('')
 const eventTime = ref('')
 const specialRequests = ref('')
 const contactName = ref('')
-const contactEmail = ref('')
+// Logged-in users shouldn't have to retype an email we already have —
+// prefill from the auth store. Still an editable field (in case someone
+// wants the confirmation to go to a different address), just not blank.
+const contactEmail = ref(auth.user?.email || '')
 const contactPhone = ref('')
 
 const error = ref('')
@@ -27,12 +38,55 @@ const isSubmitting = ref(false)
 
 const today = new Date().toISOString().split('T')[0]
 
+// Each cart item keeps its own guest_count (set per-package on
+// PackageDetail), and this field is the single "overall event" guest count
+// shown here. Since one event only has one guest count, moving this
+// stepper pushes the new value onto every cart item via setGuestCount()
+// below — that keeps pricing (and the Cart page, if the customer goes back)
+// in sync with what's shown here instead of silently ignoring it.
 const subtotal = computed(() =>
-  cart.items.reduce((sum, pkg) => sum + pkg.base_price * guestCount.value, 0),
+  cart.items.reduce((sum, pkg) => sum + pkg.base_price * (pkg.guest_count || guestCount.value), 0),
 )
 
+// Applies a new guest count both to the field shown here and to every
+// package in the cart, so the Subtotal/Total actually move when this is
+// changed instead of staying pinned to whatever was set back on
+// PackageDetail.
+function setGuestCount(value) {
+  const next = Math.max(1, Number(value) || 1)
+  guestCount.value = next
+  cart.items.forEach((_, index) => cart.updateGuestCount(index, next))
+}
+
 const serviceFee = computed(() => Math.round(subtotal.value * 0.05))
-const total = computed(() => subtotal.value + serviceFee.value)
+
+const couponInput = ref('')
+const appliedCoupon = ref(null)
+const couponError = ref('')
+
+const discount = computed(() =>
+  appliedCoupon.value ? Math.round(subtotal.value * appliedCoupon.value.discountRate) : 0,
+)
+
+const total = computed(() => subtotal.value + serviceFee.value - discount.value)
+
+function applyCoupon() {
+  couponError.value = ''
+  if (!couponInput.value.trim()) return
+  const result = validateCoupon(couponInput.value)
+  if (!result.valid) {
+    couponError.value = result.message
+    appliedCoupon.value = null
+    return
+  }
+  appliedCoupon.value = { code: result.code, discountRate: result.discountRate, message: result.message }
+  couponInput.value = ''
+}
+
+function removeCoupon() {
+  appliedCoupon.value = null
+  couponError.value = ''
+}
 
 function removePackage(index) {
   cart.removeItem(index)
@@ -75,6 +129,8 @@ function handleSubmit() {
     contact_phone: contactPhone.value,
     status: 'pending_payment',
     total_amount: total.value,
+    coupon_code: appliedCoupon.value?.code || null,
+    discount_amount: discount.value,
     items: cart.items,
   }
 
@@ -128,12 +184,20 @@ function handleSubmit() {
                 type="button"
                 class="checkout__stepper-btn"
                 :disabled="guestCount <= 1"
-                @click="guestCount = Math.max(1, guestCount - 5)"
+                @click="setGuestCount(guestCount - 5)"
               >
                 −
               </button>
-              <input v-model.number="guestCount" type="number" min="1" class="checkout__stepper-input" />
-              <button type="button" class="checkout__stepper-btn" @click="guestCount += 5">+</button>
+              <input
+                :value="guestCount"
+                type="number"
+                min="1"
+                class="checkout__stepper-input"
+                @change="setGuestCount($event.target.value)"
+              />
+              <button type="button" class="checkout__stepper-btn" @click="setGuestCount(guestCount + 5)">
+                +
+              </button>
             </div>
           </label>
 
@@ -171,7 +235,12 @@ function handleSubmit() {
               autocomplete="email"
               required
             />
-            <span class="checkout__hint">We'll send your booking confirmation here.</span>
+            <span class="checkout__hint">
+              <template v-if="auth.isLoggedIn">
+                Using the email on your account — we'll send your booking confirmation here.
+              </template>
+              <template v-else> We'll send your booking confirmation here. </template>
+            </span>
           </label>
         </section>
       </div>
@@ -197,6 +266,23 @@ function handleSubmit() {
           </li>
         </ul>
 
+        <div class="checkout__coupon">
+          <template v-if="!appliedCoupon">
+            <label class="checkout__field">
+              <span class="checkout__label">Promo Code</span>
+              <div class="checkout__coupon-row">
+                <input v-model="couponInput" type="text" placeholder="e.g. OCCASION10" @keyup.enter.prevent="applyCoupon" />
+                <button type="button" class="checkout__coupon-apply" @click="applyCoupon">Apply</button>
+              </div>
+            </label>
+            <p v-if="couponError" class="checkout__coupon-error" role="alert">{{ couponError }}</p>
+          </template>
+          <div v-else class="checkout__coupon-applied">
+            <span>“{{ appliedCoupon.code }}” applied — {{ appliedCoupon.message }}</span>
+            <button type="button" class="checkout__coupon-remove" @click="removeCoupon">Remove</button>
+          </div>
+        </div>
+
         <dl class="checkout__totals">
           <div class="checkout__totals-row">
             <dt>Guests</dt>
@@ -209,6 +295,10 @@ function handleSubmit() {
           <div class="checkout__totals-row">
             <dt>Service Fee (5%)</dt>
             <dd>R{{ serviceFee.toLocaleString() }}</dd>
+          </div>
+          <div v-if="appliedCoupon" class="checkout__totals-row checkout__totals-row--discount">
+            <dt>Discount ({{ appliedCoupon.code }})</dt>
+            <dd>−R{{ discount.toLocaleString() }}</dd>
           </div>
           <div class="checkout__totals-row checkout__totals-row--total">
             <dt>Total</dt>
@@ -256,6 +346,67 @@ function handleSubmit() {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+}
+
+.checkout__coupon {
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  padding: 1rem 0;
+  margin: 0.25rem 0;
+}
+
+.checkout__coupon-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.checkout__coupon-row input {
+  flex: 1;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+
+.checkout__coupon-apply {
+  border: 1px solid var(--color-brown-deep);
+  background: var(--color-brown-deep);
+  color: var(--color-cream);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.checkout__coupon-error {
+  font-size: 0.78rem;
+  color: #a63d3d;
+  margin-top: 0.4rem;
+}
+
+.checkout__coupon-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: #3e9a5f;
+  font-weight: 500;
+}
+
+.checkout__coupon-remove {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.checkout__totals-row--discount {
+  color: #3e9a5f;
 }
 
 .checkout__browse-link {

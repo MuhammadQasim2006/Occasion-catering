@@ -1,8 +1,12 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, RouterLink, useRouter } from 'vue-router'
-import { fetchPackageById, fetchMenuItems } from '@/data/mockPackages'
+import { fetchPackageById, fetchMenuItems, fetchPackages } from '@/data/mockPackages'
 import { useCartStore } from '@/stores/cart'
+import { useWishlistStore } from '@/stores/wishlist'
+import { pseudoRating } from '@/utils/rating'
+import StarRating from '@/components/common/StarRating.vue'
+import PackageCard from '@/components/packages/PackageCard.vue'
 
 // Shell for GET /api/packages/:id (see API contract, TICKET-001).
 // Route: /packages/:id — id available via route.params.id.
@@ -13,11 +17,20 @@ import { useCartStore } from '@/stores/cart'
 const route = useRoute()
 const router = useRouter()
 const cart = useCartStore()
+const wishlist = useWishlistStore()
 
 const pkg = ref(null)
 const menu = ref(null)
 const status = ref('loading') // 'loading' | 'success' | 'error'
 const guestCount = ref(20)
+const similarPackages = ref([])
+
+const rating = computed(() => (pkg.value ? pseudoRating(pkg.value.package_id) : null))
+const isSaved = computed(() => (pkg.value ? wishlist.has(pkg.value.package_id) : false))
+
+function toggleWishlist() {
+  if (pkg.value) wishlist.toggle(pkg.value.package_id)
+}
 
 const courseLabels = { starters: 'Starters', mains: 'Mains', desserts: 'Desserts' }
 const dietaryLabels = { veg: 'Vegetarian', vegan: 'Vegan', gf: 'Gluten-Free' }
@@ -45,6 +58,12 @@ async function load() {
       desserts: menuResult.desserts?.[0] ? [menuResult.desserts[0].id] : [],
     }
     status.value = 'success'
+
+    // Cross-sell: other packages in the same category, excluding this one.
+    const all = await fetchPackages()
+    similarPackages.value = all
+      .filter((p) => p.category_id === pkgResult.category_id && p.package_id !== pkgResult.package_id)
+      .slice(0, 4)
   } catch {
     status.value = 'error'
   }
@@ -129,10 +148,29 @@ function goToCheckout() {
         <div class="package-detail__image-wrap">
           <img :src="pkg.image_url" :alt="pkg.name" class="package-detail__image" />
           <span v-if="pkg.badge" class="package-detail__badge">{{ pkg.badge }}</span>
+          <button
+            type="button"
+            class="package-detail__wishlist"
+            :class="{ 'package-detail__wishlist--active': isSaved }"
+            :aria-pressed="isSaved"
+            :aria-label="isSaved ? 'Remove from saved packages' : 'Save package for later'"
+            @click="toggleWishlist"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" :fill="isSaved ? 'currentColor' : 'none'">
+              <path
+                d="M12 20.5s-7.5-4.6-9.8-9.1C.6 8 1.9 4.6 5.1 3.7c2-.6 4.1.2 5.4 1.9l1.5 2 1.5-2c1.3-1.7 3.4-2.5 5.4-1.9 3.2.9 4.5 4.3 2.9 7.7-2.3 4.5-9.8 9.1-9.8 9.1Z"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linejoin="round"
+              />
+            </svg>
+            {{ isSaved ? 'Saved' : 'Save for later' }}
+          </button>
         </div>
 
         <div class="package-detail__info">
           <h1 class="package-detail__name">{{ pkg.name }}</h1>
+          <StarRating v-if="rating" :rating="rating.rating" :review-count="rating.reviewCount" size="md" />
           <p class="package-detail__price">From R{{ pkg.base_price }} / person</p>
           <p class="package-detail__description">{{ pkg.description }}</p>
 
@@ -250,6 +288,28 @@ function goToCheckout() {
           </button>
         </div>
       </aside>
+
+      <section v-if="similarPackages.length" class="package-detail__similar">
+        <h2 class="package-detail__section-title">You Might Also Like</h2>
+        <div class="package-detail__similar-grid">
+          <PackageCard v-for="similar in similarPackages" :key="similar.package_id" :pkg="similar" />
+        </div>
+      </section>
+
+      <div class="package-detail__sticky-bar">
+        <div class="package-detail__sticky-info">
+          <span class="package-detail__sticky-price">R{{ totalPrice.toLocaleString() }}</span>
+          <span class="package-detail__sticky-guests">{{ guestCount }} guests</span>
+        </div>
+        <button
+          type="button"
+          class="package-detail__sticky-btn"
+          :disabled="!canAddToCart"
+          @click="handleAddToCart"
+        >
+          {{ justAdded ? 'Added ✓' : 'Add to Cart' }}
+        </button>
+      </div>
     </template>
   </main>
 </template>
@@ -341,6 +401,26 @@ function goToCheckout() {
   font-weight: 600;
   padding: 0.3rem 0.75rem;
   border-radius: var(--radius-full);
+}
+
+.package-detail__wishlist {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-brown-deep);
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.package-detail__wishlist--active {
+  color: #c0435a;
 }
 
 .package-detail__info {
@@ -629,9 +709,28 @@ function goToCheckout() {
   cursor: not-allowed;
 }
 
+.package-detail__similar {
+  grid-column: 1 / -1;
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.package-detail__similar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+}
+
+.package-detail__sticky-bar {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .package-detail {
     grid-template-columns: 1fr;
+    padding-bottom: 6rem;
   }
   .package-detail__hero {
     grid-template-columns: 1fr;
@@ -641,6 +740,57 @@ function goToCheckout() {
   }
   .package-detail__summary {
     position: static;
+  }
+  .package-detail__similar-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .package-detail__sticky-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    background: var(--color-white);
+    border-top: 1px solid var(--color-line);
+    padding: 0.85rem 1.25rem;
+    padding-bottom: calc(0.85rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -6px 18px rgba(43, 29, 18, 0.1);
+  }
+  .package-detail__sticky-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+  .package-detail__sticky-price {
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+  .package-detail__sticky-guests {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+  }
+  .package-detail__sticky-btn {
+    background: var(--color-gold);
+    color: var(--color-brown-deep);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0.8rem 1.5rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  .package-detail__sticky-btn:disabled {
+    opacity: 0.5;
+  }
+}
+
+@media (max-width: 560px) {
+  .package-detail__similar-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

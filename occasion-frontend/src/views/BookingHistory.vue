@@ -1,12 +1,17 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { useBookingsStore } from '@/stores/bookings'
+import { useCartStore } from '@/stores/cart'
 
 // GET /api/bookings (logged-in customer's bookings). Reads from the bookings
 // Pinia store (TICKET-006) — swap the store's mock rows for a real fetch once
 // the endpoint lands.
 const bookingsStore = useBookingsStore()
+const cart = useCartStore()
+const router = useRouter()
+
+const rebookedId = ref(null)
 
 const filter = ref('all')
 const filters = [
@@ -51,6 +56,20 @@ function canCancel(booking) {
 
 function handleCancel(bookingId) {
   bookingsStore.cancelBooking(bookingId)
+}
+
+// Re-adds every package from a past booking to the cart, using that
+// booking's own guest count and menu selections as a starting point, then
+// sends the customer straight to Cart to review before checking out again.
+function handleRebook(booking) {
+  booking.items?.forEach((pkg) => {
+    cart.addItem({
+      ...pkg,
+      guest_count: pkg.guest_count || booking.guest_count || 1,
+    })
+  })
+  rebookedId.value = booking.booking_id
+  setTimeout(() => router.push('/cart'), 600)
 }
 </script>
 
@@ -116,6 +135,14 @@ function handleCancel(bookingId) {
         <div class="history__card-side">
           <p class="history__total-label">Total</p>
           <p class="history__total">R{{ booking.total_amount.toLocaleString() }}</p>
+          <button
+            type="button"
+            class="history__rebook"
+            :disabled="rebookedId === booking.booking_id"
+            @click="handleRebook(booking)"
+          >
+            {{ rebookedId === booking.booking_id ? 'Added to cart ✓' : 'Book Again' }}
+          </button>
           <button
             v-if="canCancel(booking)"
             type="button"
@@ -321,6 +348,26 @@ function handleCancel(bookingId) {
   font-size: 1.4rem;
   font-weight: 700;
   font-family: var(--font-display);
+}
+
+.history__rebook {
+  background: var(--color-gold);
+  border: 1px solid var(--color-gold);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-brown-deep);
+  white-space: nowrap;
+}
+
+.history__rebook:hover:not(:disabled) {
+  box-shadow: 0 4px 14px rgba(207, 157, 67, 0.4);
+}
+
+.history__rebook:disabled {
+  opacity: 0.7;
+  cursor: default;
 }
 
 .history__cancel {

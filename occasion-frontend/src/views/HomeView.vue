@@ -40,6 +40,7 @@ const heroSlides = [
 ]
 
 const activeSlide = ref(0)
+const isPaused = ref(false)
 let slideTimer = null
 
 function goToSlide(index) {
@@ -57,7 +58,22 @@ function prevSlide() {
 
 function restartAutoplay() {
   clearInterval(slideTimer)
-  slideTimer = setInterval(nextSlide, 6000)
+  if (!isPaused.value) {
+    slideTimer = setInterval(nextSlide, 6000)
+  }
+}
+
+function pauseAutoplay() {
+  clearInterval(slideTimer)
+}
+
+function togglePause() {
+  isPaused.value = !isPaused.value
+  if (isPaused.value) {
+    pauseAutoplay()
+  } else {
+    restartAutoplay()
+  }
 }
 
 onMounted(restartAutoplay)
@@ -89,8 +105,10 @@ const featuredPackages = computed(() => allPackages.value.filter((pkg) => pkg.fe
       class="hero"
       aria-roledescription="carousel"
       aria-label="Featured event types"
-      @mouseenter="clearInterval(slideTimer)"
-      @mouseleave="restartAutoplay"
+      @mouseenter="pauseAutoplay"
+      @mouseleave="!isPaused && restartAutoplay()"
+      @focusin="pauseAutoplay"
+      @focusout="!isPaused && restartAutoplay()"
     >
       <div
         v-for="(slide, index) in heroSlides"
@@ -105,7 +123,13 @@ const featuredPackages = computed(() => allPackages.value.filter((pkg) => pkg.fe
           <p class="hero__subtitle">{{ slide.subtitle }}</p>
           <RouterLink :to="slide.ctaTo" class="hero__cta">{{ slide.ctaLabel }}</RouterLink>
         </div>
-        <img class="hero__image" :src="slide.image" :alt="slide.alt" />
+        <img
+          class="hero__image"
+          :src="slide.image"
+          :alt="slide.alt"
+          :loading="index === 0 ? 'eager' : 'lazy'"
+          :fetchpriority="index === 0 ? 'high' : 'auto'"
+        />
       </div>
 
       <button class="hero__arrow hero__arrow--prev" aria-label="Previous slide" @click="prevSlide">
@@ -113,6 +137,13 @@ const featuredPackages = computed(() => allPackages.value.filter((pkg) => pkg.fe
       </button>
       <button class="hero__arrow hero__arrow--next" aria-label="Next slide" @click="nextSlide">
         ›
+      </button>
+      <button
+        class="hero__pause"
+        :aria-label="isPaused ? 'Play slideshow' : 'Pause slideshow'"
+        @click="togglePause"
+      >
+        {{ isPaused ? '▶' : '❚❚' }}
       </button>
 
       <div class="hero__dots" role="tablist" aria-label="Choose a slide">
@@ -163,6 +194,7 @@ const featuredPackages = computed(() => allPackages.value.filter((pkg) => pkg.fe
         class="tour-banner__image"
         src="https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&w=1400&q=80"
         alt="African savanna at sunset"
+        loading="lazy"
       />
       <div class="tour-banner__overlay">
         <p class="tour-banner__eyebrow">For Tour Operators</p>
@@ -292,6 +324,24 @@ main {
 
 .hero__arrow--next {
   right: 1rem;
+}
+
+.hero__pause {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 3;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-ink);
+  font-size: 0.75rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .hero__dots {

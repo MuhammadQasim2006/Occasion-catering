@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
+import { validateCoupon } from '@/utils/coupons'
 
 // /cart — lets guests review, adjust, and remove packages before handing off
 // to Checkout.vue for event details + contact info. Each cart item already
@@ -13,7 +14,34 @@ const router = useRouter()
 const cart = useCartStore()
 
 const serviceFee = computed(() => Math.round(cart.subtotal * 0.05))
-const total = computed(() => cart.subtotal + serviceFee.value)
+
+const couponInput = ref('')
+const appliedCoupon = ref(null) // { code, discountRate, message }
+const couponError = ref('')
+
+const discount = computed(() =>
+  appliedCoupon.value ? Math.round(cart.subtotal * appliedCoupon.value.discountRate) : 0,
+)
+
+const total = computed(() => cart.subtotal + serviceFee.value - discount.value)
+
+function applyCoupon() {
+  couponError.value = ''
+  if (!couponInput.value.trim()) return
+  const result = validateCoupon(couponInput.value)
+  if (!result.valid) {
+    couponError.value = result.message
+    appliedCoupon.value = null
+    return
+  }
+  appliedCoupon.value = { code: result.code, discountRate: result.discountRate, message: result.message }
+  couponInput.value = ''
+}
+
+function removeCoupon() {
+  appliedCoupon.value = null
+  couponError.value = ''
+}
 
 function itemSubtotal(item) {
   return item.base_price * (item.guest_count || 1)
@@ -133,6 +161,28 @@ function goToCheckout() {
       <aside class="cart__summary">
         <h2 class="cart__summary-title">Order Summary</h2>
 
+        <div class="cart__coupon">
+          <template v-if="!appliedCoupon">
+            <label class="cart__coupon-field">
+              <span class="cart__label">Promo Code</span>
+              <div class="cart__coupon-row">
+                <input
+                  v-model="couponInput"
+                  type="text"
+                  placeholder="e.g. OCCASION10"
+                  @keyup.enter="applyCoupon"
+                />
+                <button type="button" class="cart__coupon-apply" @click="applyCoupon">Apply</button>
+              </div>
+            </label>
+            <p v-if="couponError" class="cart__coupon-error" role="alert">{{ couponError }}</p>
+          </template>
+          <div v-else class="cart__coupon-applied">
+            <span>“{{ appliedCoupon.code }}” applied — {{ appliedCoupon.message }}</span>
+            <button type="button" class="cart__coupon-remove" @click="removeCoupon">Remove</button>
+          </div>
+        </div>
+
         <dl class="cart__totals">
           <div class="cart__totals-row">
             <dt>Subtotal</dt>
@@ -141,6 +191,10 @@ function goToCheckout() {
           <div class="cart__totals-row">
             <dt>Service Fee (5%)</dt>
             <dd>R{{ serviceFee.toLocaleString() }}</dd>
+          </div>
+          <div v-if="appliedCoupon" class="cart__totals-row cart__totals-row--discount">
+            <dt>Discount ({{ appliedCoupon.code }})</dt>
+            <dd>−R{{ discount.toLocaleString() }}</dd>
           </div>
           <div class="cart__totals-row cart__totals-row--total">
             <dt>Total</dt>
@@ -411,6 +465,79 @@ function goToCheckout() {
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-ink);
+}
+
+.cart__totals-row--discount {
+  color: #3e9a5f;
+}
+
+.cart__coupon {
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  padding: 1rem 0;
+  margin: 0.25rem 0;
+}
+
+.cart__coupon-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.cart__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.cart__coupon-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cart__coupon-row input {
+  flex: 1;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+
+.cart__coupon-apply {
+  border: 1px solid var(--color-brown-deep);
+  background: var(--color-brown-deep);
+  color: var(--color-cream);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cart__coupon-error {
+  font-size: 0.78rem;
+  color: #a63d3d;
+  margin-top: 0.4rem;
+}
+
+.cart__coupon-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  color: #3e9a5f;
+  font-weight: 500;
+}
+
+.cart__coupon-remove {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  text-decoration: underline;
+  white-space: nowrap;
 }
 
 .cart__actions {

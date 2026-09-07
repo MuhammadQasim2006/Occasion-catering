@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useBookingsStore } from '@/stores/bookings'
+import { sendBookingConfirmationEmail } from '@/utils/email'
 
 // SIMULATED PAYMENT STEP — stands in for the real PayFast sandbox redirect
 // until Day 7's payments work lands. Card fields below are cosmetic only;
@@ -99,6 +100,9 @@ function simulate(outcome) {
   setTimeout(() => {
     if (outcome === 'complete') {
       bookings.updateStatus(bookingId.value, 'confirmed')
+      // Fire-and-forget: don't block the redirect on the email send, and
+      // don't fail the booking flow if EmailJS is unreachable or unset up.
+      sendBookingConfirmationEmail(booking.value)
     } else if (outcome === 'failed') {
       bookings.updateStatus(bookingId.value, 'pending_payment')
     } else {
@@ -129,8 +133,36 @@ function simulate(outcome) {
         <p class="payment__subtitle">Booking #{{ booking.booking_id }}</p>
       </header>
 
+      <ul v-if="booking.items?.length" class="payment__items">
+        <li v-for="(pkg, index) in booking.items" :key="`${pkg.package_id}-${index}`" class="payment__item">
+          <img :src="pkg.image_url" :alt="pkg.name" class="payment__item-image" />
+          <div>
+            <p class="payment__item-name">{{ pkg.name }}</p>
+            <p class="payment__item-meta">
+              {{ pkg.guest_count || booking.guest_count }} guests · R{{ pkg.base_price }} / person
+            </p>
+          </div>
+        </li>
+      </ul>
+
       <dl class="payment__summary">
-        <div class="payment__summary-row">
+        <div v-if="booking.event_date" class="payment__summary-row">
+          <dt>Event date</dt>
+          <dd>
+            {{
+              new Date(`${booking.event_date}T00:00:00`).toLocaleDateString('en-ZA', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })
+            }}
+          </dd>
+        </div>
+        <div v-if="booking.discount_amount" class="payment__summary-row">
+          <dt>Discount{{ booking.coupon_code ? ` (${booking.coupon_code})` : '' }}</dt>
+          <dd>−R{{ booking.discount_amount.toLocaleString() }}</dd>
+        </div>
+        <div class="payment__summary-row payment__summary-row--total">
           <dt>Amount due</dt>
           <dd>R{{ booking.total_amount.toLocaleString() }}</dd>
         </div>
@@ -321,7 +353,44 @@ function simulate(outcome) {
 }
 
 .payment__summary-row dd {
+  font-weight: 500;
+}
+
+.payment__summary-row--total dd {
   font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.payment__items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 0 0;
+}
+
+.payment__item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.payment__item-image {
+  width: 3rem;
+  height: 3rem;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.payment__item-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.payment__item-meta {
+  font-size: 0.78rem;
+  color: var(--color-muted);
 }
 
 .payment__form {

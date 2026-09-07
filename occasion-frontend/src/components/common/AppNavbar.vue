@@ -79,6 +79,7 @@ watch(() => route.fullPath, closeMenu)
       </RouterLink>
 
       <label class="navbar__search">
+        <span class="sr-only">Search packages, events, tours</span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="11" cy="11" r="7" stroke="var(--color-muted)" stroke-width="1.8" />
           <path d="m20 20-3.2-3.2" stroke="var(--color-muted)" stroke-width="1.8" stroke-linecap="round" />

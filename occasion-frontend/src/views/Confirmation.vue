@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useBookingsStore } from '@/stores/bookings'
 
@@ -39,6 +39,63 @@ const statusCopy = {
 const status = computed(
   () => statusCopy[booking.value?.status] ?? { label: 'Pending Payment', tone: 'pending' },
 )
+
+const copied = ref(false)
+
+async function copyBookingRef() {
+  if (!booking.value) return
+  try {
+    await navigator.clipboard.writeText(`OCC-${booking.value.booking_id}`)
+    copied.value = true
+    setTimeout(() => (copied.value = false), 2000)
+  } catch {
+    // Clipboard API can be unavailable (older browsers, permissions) —
+    // fail silently rather than block the rest of the page.
+  }
+}
+
+// Builds a downloadable .ics file client-side so the event can go straight
+// into the customer's calendar app — no server round-trip needed for this.
+function downloadCalendarInvite() {
+  if (!booking.value?.event_date) return
+
+  const [year, month, day] = booking.value.event_date.split('-').map(Number)
+  const [hour = 12, minute = 0] = (booking.value.event_time || '12:00').split(':').map(Number)
+
+  const pad = (n) => String(n).padStart(2, '0')
+  const startStamp = `${year}${pad(month)}${pad(day)}T${pad(hour)}${pad(minute)}00`
+  const endDate = new Date(year, month - 1, day, hour + 3, minute)
+  const endStamp = `${endDate.getFullYear()}${pad(endDate.getMonth() + 1)}${pad(endDate.getDate())}T${pad(endDate.getHours())}${pad(endDate.getMinutes())}00`
+  const nowStamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+
+  const packageNames = (booking.value.items || []).map((item) => item.name).join(', ')
+  const description = `Booking #${booking.value.booking_id} with Occasion. Packages: ${packageNames}. Guests: ${guestCount.value}.`
+
+  const icsContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Occasion//Booking//EN',
+    'BEGIN:VEVENT',
+    `UID:occasion-booking-${booking.value.booking_id}@occasion`,
+    `DTSTAMP:${nowStamp}`,
+    `DTSTART:${startStamp}`,
+    `DTEND:${endStamp}`,
+    `SUMMARY:Occasion Booking — ${packageNames || 'Catering Event'}`,
+    `DESCRIPTION:${description.replace(/\n/g, '\\n')}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
+
+  const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `occasion-booking-${booking.value.booking_id}.ics`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
 
 // Payment now happens on the simulated Payment.vue step, before the
 // customer ever lands here — so "what happens next" has to reflect
@@ -174,6 +231,11 @@ const heroCopy = computed(() => {
             </span>
           </div>
 
+          <button type="button" class="confirmation__ref" @click="copyBookingRef">
+            Booking ref: OCC-{{ booking.booking_id }}
+            <span class="confirmation__ref-copy">{{ copied ? 'Copied ✓' : 'Copy' }}</span>
+          </button>
+
           <dl class="confirmation__grid">
             <div class="confirmation__grid-item">
               <dt>Event Date</dt>
@@ -204,6 +266,15 @@ const heroCopy = computed(() => {
           <p v-if="booking.special_requests" class="confirmation__requests">
             <strong>Special requests:</strong> {{ booking.special_requests }}
           </p>
+
+          <button
+            v-if="booking.event_date"
+            type="button"
+            class="confirmation__calendar-btn"
+            @click="downloadCalendarInvite"
+          >
+            📅 Add to Calendar
+          </button>
         </div>
 
         <div class="confirmation__card">
@@ -397,6 +468,44 @@ const heroCopy = computed(() => {
   border-top: 1px solid var(--color-line);
   font-size: 0.9rem;
   color: var(--color-muted);
+}
+
+.confirmation__ref {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: var(--color-cream-soft);
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-brown);
+  margin: -0.25rem 0 1.1rem;
+}
+
+.confirmation__ref-copy {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-gold);
+}
+
+.confirmation__calendar-btn {
+  margin-top: 1.1rem;
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-brown);
+}
+
+.confirmation__calendar-btn:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
 }
 
 .confirmation__steps {
