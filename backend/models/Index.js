@@ -1,6 +1,6 @@
 const sequelize = require('../config/db');
 const User = require('./User');
-// const Customer = require('./Customer');
+const Customer = require('./Customer');
 // const Category = require('./Category');
 // const CateringPackage = require('./CateringPackage');
 // const MenuItem = require('./MenuItem');
@@ -9,13 +9,13 @@ const User = require('./User');
 // const Payment = require('./Payment');
 
 // Associations (add as models are created)
-// User.hasOne(Customer, { foreignKey: 'user_id' });
-// Customer.belongsTo(User, { foreignKey: 'user_id' });
+User.hasOne(Customer, { foreignKey: 'user_id' });
+Customer.belongsTo(User, { foreignKey: 'user_id' });
 
 module.exports = {
   sequelize,
   User,
-  // Customer,
+  Customer,
   // Category,
   // CateringPackage,
   // MenuItem,

@@ -5,7 +5,12 @@ exports.getCustomerProfile = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+    // Convert both IDs to numbers before comparing
+    const userId = Number(req.user.id);
+    const customerId = Number(id);
+
+    // Only admins or the customer themselves can access the profile
+    if (req.user.role !== 'admin' && userId !== customerId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -13,7 +18,9 @@ exports.getCustomerProfile = async (req, res) => {
     }
 
     const customer = await Customer.findOne({
-      where: { user_id: id },
+      where: {
+        user_id: customerId
+      },
       include: [
         {
           model: User,
@@ -29,18 +36,22 @@ exports.getCustomerProfile = async (req, res) => {
       });
     }
 
-    res.json({
+    return res.status(200).json({
       success: true,
       data: customer
     });
+
   } catch (error) {
     console.error('Get customer profile error:', error);
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: 'Failed to fetch customer profile'
+      message: 'Failed to fetch customer profile',
+      error: error.message
     });
   }
 };
+
 
 // PUT /api/customers/:id
 exports.updateCustomerProfile = async (req, res) => {
@@ -48,7 +59,12 @@ exports.updateCustomerProfile = async (req, res) => {
     const { id } = req.params;
     const { first_name, last_name, phone } = req.body;
 
-    if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+    // Convert both IDs to numbers
+    const userId = Number(req.user.id);
+    const customerId = Number(id);
+
+    // Only admins or the customer themselves can update the profile
+    if (req.user.role !== 'admin' && userId !== customerId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -56,7 +72,9 @@ exports.updateCustomerProfile = async (req, res) => {
     }
 
     const customer = await Customer.findOne({
-      where: { user_id: id }
+      where: {
+        user_id: customerId
+      }
     });
 
     if (!customer) {
@@ -66,22 +84,34 @@ exports.updateCustomerProfile = async (req, res) => {
       });
     }
 
-    if (first_name) customer.first_name = first_name;
-    if (last_name) customer.last_name = last_name;
-    if (phone) customer.phone = phone;
+    // Update fields only when they were provided
+    if (first_name !== undefined) {
+      customer.first_name = first_name;
+    }
+
+    if (last_name !== undefined) {
+      customer.last_name = last_name;
+    }
+
+    if (phone !== undefined) {
+      customer.phone = phone;
+    }
 
     await customer.save();
 
-    res.json({
+    return res.status(200).json({
       success: true,
       data: customer,
       message: 'Customer profile updated'
     });
+
   } catch (error) {
     console.error('Update customer profile error:', error);
-    res.status(500).json({
+
+    return res.status(500).json({
       success: false,
-      message: 'Failed to update customer profile'
+      message: 'Failed to update customer profile',
+      error: error.message
     });
   }
 };
