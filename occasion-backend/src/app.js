@@ -7,6 +7,7 @@ const authRoutes = require("./routes/authRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const tourRoutes = require("./routes/tourRoutes");
 
 const app = express();
 
@@ -25,5 +26,6 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/tours", tourRoutes);
 
 module.exports = app;
