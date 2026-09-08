@@ -1,7 +1,9 @@
 const crypto = require("crypto");
 const https = require("https");
+const dns = require("dns");
 
 const {
+  User,
   Booking,
   Customer,
   Payment,
@@ -89,7 +91,10 @@ function verifySignature(data) {
     .update(stringToHash)
     .digest("hex");
 
-  if (calculatedSignature.length !== receivedSignature.length) {
+  if (
+    calculatedSignature.length !==
+    receivedSignature.length
+  ) {
     return false;
   }
 
@@ -104,8 +109,6 @@ function requestPayFastValidation(data) {
     const parameterString =
       buildValidationParameterString(data);
 
-    const postData = parameterString;
-
     const url = new URL(PAYFAST_VALIDATE_URL);
 
     const request = https.request(
@@ -118,7 +121,7 @@ function requestPayFastValidation(data) {
           "Content-Type":
             "application/x-www-form-urlencoded",
           "Content-Length":
-            Buffer.byteLength(postData),
+            Buffer.byteLength(parameterString),
         },
       },
       (response) => {
@@ -138,7 +141,7 @@ function requestPayFastValidation(data) {
       reject(error);
     });
 
-    request.write(postData);
+    request.write(parameterString);
     request.end();
   });
 }
@@ -147,10 +150,11 @@ async function isValidPayFastSource(req) {
   const forwardedFor =
     req.headers["x-forwarded-for"];
 
-  const clientIp =
-    forwardedFor
-      ? String(forwardedFor).split(",")[0].trim()
-      : req.socket.remoteAddress;
+  const clientIp = forwardedFor
+    ? String(forwardedFor)
+        .split(",")[0]
+        .trim()
+    : req.socket.remoteAddress;
 
   if (!clientIp) {
     return false;
@@ -162,15 +166,14 @@ async function isValidPayFastSource(req) {
     normalizedIp = normalizedIp.substring(7);
   }
 
-  const validHosts = process.env.PAYFAST_SANDBOX === "true"
-    ? [
-        "sandbox.payfast.co.za",
-      ]
-    : [
-        "www.payfast.co.za",
-        "w1w.payfast.co.za",
-        "w2w.payfast.co.za",
-      ];
+  const validHosts =
+    process.env.PAYFAST_SANDBOX === "true"
+      ? ["sandbox.payfast.co.za"]
+      : [
+          "www.payfast.co.za",
+          "w1w.payfast.co.za",
+          "w2w.payfast.co.za",
+        ];
 
   const validIps = new Set();
 
@@ -178,7 +181,7 @@ async function isValidPayFastSource(req) {
     try {
       const addresses = await new Promise(
         (resolve, reject) => {
-          require("dns").lookup(
+          dns.lookup(
             hostname,
             {
               all: true,
@@ -215,7 +218,9 @@ async function isValidPayFastSource(req) {
 
 async function createPayment(req, res) {
   try {
-    const bookingId = Number(req.params.bookingId);
+    const bookingId = Number(
+      req.params.bookingId
+    );
 
     if (
       !Number.isInteger(bookingId) ||
@@ -227,22 +232,41 @@ async function createPayment(req, res) {
       });
     }
 
+    const user = await User.findByPk(
+      req.user.user_id,
+      {
+        attributes: [
+          "user_id",
+          "email",
+          "role",
+        ],
+      }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
     const customer = await Customer.findOne({
       where: {
-        user_id: req.user.user_id,
+        user_id: user.user_id,
       },
     });
 
     if (!customer) {
       return res.status(404).json({
-        message: "Customer profile not found",
+        message:
+          "Customer profile not found",
       });
     }
 
     const booking = await Booking.findOne({
       where: {
         booking_id: bookingId,
-        customer_id: customer.customer_id,
+        customer_id:
+          customer.customer_id,
       },
     });
 
@@ -259,21 +283,29 @@ async function createPayment(req, res) {
       });
     }
 
-    const existingPayment = await Payment.findOne({
-      where: {
-        booking_id: booking.booking_id,
-      },
-    });
+    const existingPayment =
+      await Payment.findOne({
+        where: {
+          booking_id:
+            booking.booking_id,
+        },
+      });
 
     if (existingPayment) {
-      if (existingPayment.status === "complete") {
+      if (
+        existingPayment.status ===
+        "complete"
+      ) {
         return res.status(409).json({
           message:
             "This booking has already been paid",
         });
       }
 
-      if (existingPayment.status === "pending") {
+      if (
+        existingPayment.status ===
+        "pending"
+      ) {
         return res.status(409).json({
           message:
             "A payment is already pending for this booking",
@@ -326,8 +358,10 @@ async function createPayment(req, res) {
       `BOOKING_${booking.booking_id}_${Date.now()}`;
 
     const payment = await Payment.create({
-      booking_id: booking.booking_id,
-      amount: booking.total_amount,
+      booking_id:
+        booking.booking_id,
+      amount:
+        booking.total_amount,
       method: "payfast",
       merchant_payment_id:
         merchantPaymentId,
@@ -349,12 +383,13 @@ async function createPayment(req, res) {
       notify_url: notifyUrl,
       name_first: firstName,
       name_last: lastName,
-      email_address:
-        req.user.email || "",
+      email_address: user.email,
       m_payment_id:
         merchantPaymentId,
       amount:
-        Number(booking.total_amount).toFixed(2),
+        Number(
+          booking.total_amount
+        ).toFixed(2),
       item_name:
         `Occasion Catering Booking #${booking.booking_id}`,
       item_description:
@@ -430,7 +465,8 @@ async function handlePaymentNotification(
 
     if (
       !merchantId ||
-      notification.merchant_id !== merchantId
+      notification.merchant_id !==
+        merchantId
     ) {
       return res
         .status(400)
@@ -466,13 +502,17 @@ async function handlePaymentNotification(
     }
 
     const receivedAmount =
-      Number(notification.amount_gross);
+      Number(
+        notification.amount_gross
+      );
 
     const expectedAmount =
       Number(payment.amount);
 
     if (
-      !Number.isFinite(receivedAmount) ||
+      !Number.isFinite(
+        receivedAmount
+      ) ||
       receivedAmount.toFixed(2) !==
         expectedAmount.toFixed(2)
     ) {
@@ -482,7 +522,9 @@ async function handlePaymentNotification(
     }
 
     const sourceIsValid =
-      await isValidPayFastSource(req);
+      await isValidPayFastSource(
+        req
+      );
 
     if (!sourceIsValid) {
       return res
@@ -495,14 +537,21 @@ async function handlePaymentNotification(
         notification
       );
 
-    if (validationResponse !== "VALID") {
+    if (
+      validationResponse !==
+      "VALID"
+    ) {
       return res
         .status(400)
-        .send("PayFast validation failed");
+        .send(
+          "PayFast validation failed"
+        );
     }
 
     const rawPayload =
-      JSON.stringify(notification);
+      JSON.stringify(
+        notification
+      );
 
     const paymentStatus =
       notification.payment_status;
