@@ -1,11 +1,12 @@
 <script setup>
 import { ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 // Shell for POST /api/auth/login (see API contract, TICKET-001).
 // Uses the auth Pinia store's stub login() until real endpoints land (TICKET-006).
 
+const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
@@ -29,7 +30,9 @@ function handleSubmit() {
   // Stub call — swap for a real POST /api/auth/login once wired.
   auth.login(email.value)
   isSubmitting.value = false
-  router.push('/')
+  // If the router guard sent us here from an auth-gated page (e.g.
+  // /dashboard), return there instead of always landing on Home.
+  router.push(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
 }
 </script>
 

@@ -1,6 +1,23 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { packages } from '@/data/mockPackages'
+
+// Persisted the same way as the cart/wishlist stores so a booking made in
+// Checkout.vue survives the redirect through Payment.vue → Confirmation.vue
+// (each of which is its own page load) as well as a manual refresh or a
+// link opened in a new tab. Without this, the in-memory store resets to
+// mockBookings on every navigation and the booking created a moment ago
+// "disappears" from Payment/Confirmation/BookingHistory.
+const STORAGE_KEY = 'occasion:bookings:v1'
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
 
 // Mock rows so Booking History has something to render before real data
 // lands. Field names mirror the Bookings table (TICKET-006 API contract) —
@@ -48,7 +65,21 @@ const mockBookings = [
 // Stub store — fake bookings until POST /api/bookings and GET /api/bookings
 // are wired in (Week 3+, per the plan's mock-first-then-dynamic strategy).
 export const useBookingsStore = defineStore('bookings', () => {
-  const bookings = ref([...mockBookings]) // [{ booking_id, event_date, guest_count, status, total_amount, ... }]
+  const stored = loadFromStorage()
+  const bookings = ref(stored ?? [...mockBookings]) // [{ booking_id, event_date, guest_count, status, total_amount, ... }]
+
+  watch(
+    bookings,
+    (value) => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+      } catch {
+        // Storage can fail (private browsing, quota) — bookings still work
+        // for the session, they just won't survive a refresh.
+      }
+    },
+    { deep: true },
+  )
 
   // Fake add — replace body with a real axios POST to /api/bookings
   function addBooking(booking) {

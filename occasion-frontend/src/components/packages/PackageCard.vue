@@ -52,7 +52,7 @@ function toggleWishlist() {
       <ul class="package-card__meta">
         <li>{{ pkg.guests }}</li>
         <li>{{ pkg.courses }}</li>
-        <li class="package-card__feature">{{ pkg.feature }}</li>
+        <li v-if="pkg.feature" class="package-card__feature">{{ pkg.feature }}</li>
       </ul>
       <RouterLink :to="`/packages/${pkg.package_id}`" class="package-card__cta">
         View Package

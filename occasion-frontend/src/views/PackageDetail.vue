@@ -32,6 +32,15 @@ function toggleWishlist() {
   if (pkg.value) wishlist.toggle(pkg.value.package_id)
 }
 
+// Typing "0", a negative number, or clearing the field entirely would
+// otherwise leave guestCount at 0/NaN (no clamp on plain v-model.number,
+// unlike the equivalent stepper on Cart.vue/Checkout.vue), which breaks
+// totalPrice and lets an invalid guest count reach the cart.
+function setGuestCount(value) {
+  guestCount.value = Math.max(1, Number(value) || 1)
+  justAdded.value = false
+}
+
 const courseLabels = { starters: 'Starters', mains: 'Mains', desserts: 'Desserts' }
 const dietaryLabels = { veg: 'Vegetarian', vegan: 'Vegan', gf: 'Gluten-Free' }
 
@@ -51,6 +60,7 @@ async function load() {
     ])
     pkg.value = pkgResult
     menu.value = menuResult
+    document.title = `${pkgResult.name} | Occasion`
     // Default to the first item in each course so the summary isn't empty.
     selections.value = {
       starters: menuResult.starters?.[0] ? [menuResult.starters[0].id] : [],
@@ -75,6 +85,8 @@ watch(() => route.params.id, load)
 function toggleSelection(course, itemId) {
   const current = selections.value[course]
   const maxPicks = course === 'mains' ? 2 : 1
+
+  justAdded.value = false
 
   if (current.includes(itemId)) {
     selections.value[course] = current.filter((id) => id !== itemId)
@@ -186,12 +198,17 @@ function goToCheckout() {
               <button
                 type="button"
                 :disabled="guestCount <= 1"
-                @click="guestCount = Math.max(1, guestCount - 5)"
+                @click="setGuestCount(guestCount - 5)"
               >
                 −
               </button>
-              <input v-model.number="guestCount" type="number" min="1" />
-              <button type="button" @click="guestCount += 5">+</button>
+              <input
+                :value="guestCount"
+                type="number"
+                min="1"
+                @change="setGuestCount($event.target.value)"
+              />
+              <button type="button" @click="setGuestCount(guestCount + 5)">+</button>
             </div>
           </label>
         </div>

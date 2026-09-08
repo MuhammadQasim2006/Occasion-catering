@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink } from 'vue-router'
 import { fetchPackages } from '@/data/mockPackages'
 import PackageCard from '@/components/packages/PackageCard.vue'
@@ -77,6 +77,12 @@ function togglePause() {
 }
 
 onMounted(restartAutoplay)
+
+// Without this, navigating away from Home doesn't stop the carousel's
+// setInterval — it keeps firing in the background for the rest of the
+// session (reassigning activeSlide on a ref nothing renders anymore),
+// which is wasted work at best and a leak if the component ever remounts.
+onBeforeUnmount(() => clearInterval(slideTimer))
 
 // --- Package grid: async load with loading / error / empty states -------
 // Homepage shows only the curated `featured` set (see mockPackages.js); the

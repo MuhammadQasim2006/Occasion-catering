@@ -8,7 +8,7 @@ defineProps({
 </script>
 
 <template>
-  <main class="placeholder">
+  <main id="main-content" class="placeholder">
     <h1>{{ title }}</h1>
     <p>This page is being built next. Check back soon.</p>
   </main>

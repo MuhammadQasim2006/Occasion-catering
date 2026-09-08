@@ -14,6 +14,7 @@ function handleSubscribe() {
 
 const quickLinks = [
   { to: '/', label: 'Home' },
+  { to: '/packages', label: 'Packages' },
   { to: '/large-events', label: 'Large Events' },
   { to: '/small-events', label: 'Small Events' },
   { to: '/tours', label: 'Tours' },
