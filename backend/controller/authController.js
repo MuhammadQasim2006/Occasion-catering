@@ -1,120 +1,158 @@
-const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { Op } = require("sequelize");
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const generateToken = (user) => {
+  return jwt.sign(
+    {
+      user_id: user.user_id,  // Use user_id instead of id
+      email: user.email,
+      role: user.role,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+};
 
+// ============================================
 // POST /api/auth/register
+// ============================================
 exports.register = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, name, phone } = req.body;
 
-    if (!email || !password) {
+    // Validate required fields
+    if (!email || !password || !name) {
       return res.status(400).json({
-        message: "Email and password are required",
+        success: false,
+        error: "Email, password and name are required",
       });
     }
 
-    const existingUser = await User.findOne({ where: { email } });
+    // Check if user exists (case-insensitive)
+    const existingUser = await User.findOne({
+      where: {
+        email: { [Op.iLike]: email },
+      },
+    });
 
     if (existingUser) {
       return res.status(400).json({
-        message: "Email already registered",
+        success: false,
+        error: "Email already registered",
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = await User.create({
-      email,
-      password_hash: hashedPassword,
+    // Create user (password_hash will be hashed by model hook)
+    const user = await User.create({
+      email: email.toLowerCase(),
+      password_hash: password, // Will be hashed by beforeCreate hook
+      name,
+      phone: phone || null,
+      role: "customer",
     });
 
-    return res.status(201).json({
-      message: "User registered successfully",
-      userId: newUser.user_id,
+    // Generate token
+    const token = generateToken(user);
+
+    // Remove password_hash from response
+    const userData = user.toJSON();
+    delete userData.password_hash;
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user: userData,
+        token,
+      },
     });
   } catch (error) {
-    return res.status(500).json({
-      message: "Server error during registration",
-      error: error.message,
+    console.error("Register error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Registration failed. Please try again.",
     });
   }
 };
 
+// ============================================
 // POST /api/auth/login
+// ============================================
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Validate required fields
     if (!email || !password) {
       return res.status(400).json({
-        message: "Email and password are required",
+        success: false,
+        error: "Email and password are required",
       });
     }
 
-    const user = await User.findOne({ where: { email } });
+    // Find user
+    const user = await User.findOne({
+      where: {
+        email: { [Op.iLike]: email },
+      },
+    });
 
     if (!user) {
       return res.status(401).json({
-        message: "Invalid credentials",
+        success: false,
+        error: "Invalid credentials",
       });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-
-    if (!isMatch) {
+    // Check password (using model method)
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
       return res.status(401).json({
-        message: "Invalid credentials",
+        success: false,
+        error: "Invalid credentials",
       });
     }
 
-    const token = jwt.sign(
-      {
-        id: user.user_id,
-        email: user.email,
-        role: user.role,
-      },
-      JWT_SECRET,
-      { expiresIn: "1d" },
-    );
+    // Generate token
+    const token = generateToken(user);
 
-    return res.status(200).json({
-      token,
-      user: {
-        id: user.user_id,
-        email: user.email,
-        role: user.role,
+    // Remove password_hash from response
+    const userData = user.toJSON();
+    delete userData.password_hash;
+
+    res.json({
+      success: true,
+      data: {
+        user: userData,
+        token,
       },
     });
   } catch (error) {
-    return res.status(500).json({
-      message: "Server error during login",
-      error: error.message,
+    console.error("Login error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Login failed. Please try again.",
     });
   }
 };
 
+// ============================================
 // GET /api/auth/me
+// ============================================
 exports.getMe = async (req, res) => {
   try {
-    const user = await User.findByPk(req.user_id, {
-      attributes: {
-        exclude: ["password_hash"],
+    // User is already attached by auth middleware
+    res.json({
+      success: true,
+      data: {
+        user: req.user,
       },
     });
-
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found",
-      });
-    }
-
-    return res.status(200).json(user);
   } catch (error) {
-    return res.status(500).json({
-      message: "Server error fetching user profile",
-      error: error.message,
+    console.error("Get me error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get user profile",
     });
   }
 };

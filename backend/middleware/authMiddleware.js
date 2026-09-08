@@ -8,14 +8,15 @@ const authMiddleware = async (req, res, next) => {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
-        error: "No token provided",
+        error: "No token provided. Please log in.",
       });
     }
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findByPk(decoded.id, {
+    // Use user_id instead of id
+    const user = await User.findByPk(decoded.user_id, {
       attributes: {
         exclude: ["password_hash"],
       },
@@ -24,7 +25,7 @@ const authMiddleware = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: "User not found",
+        error: "User not found. Invalid token.",
       });
     }
 
@@ -34,17 +35,18 @@ const authMiddleware = async (req, res, next) => {
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({
         success: false,
-        error: "Invalid token",
+        error: "Invalid token. Please log in again.",
       });
     }
 
     if (error.name === "TokenExpiredError") {
       return res.status(401).json({
         success: false,
-        error: "Token expired",
+        error: "Token expired. Please log in again.",
       });
     }
 
+    console.error("Auth error:", error);
     return res.status(500).json({
       success: false,
       error: "Authentication error",
@@ -54,6 +56,13 @@ const authMiddleware = async (req, res, next) => {
 
 // Admin middleware
 const adminMiddleware = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: "Authentication required",
+    });
+  }
+
   if (req.user.role !== "admin") {
     return res.status(403).json({
       success: false,
