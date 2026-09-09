@@ -19,8 +19,31 @@ const Booking = sequelize.define('Booking', {
     type: DataTypes.DATE,
     allowNull: false
   },
+  event_time: {
+    type: DataTypes.STRING(10),
+    allowNull: true
+  },
   guest_count: {
     type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  special_requests: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  contact_name: {
+    type: DataTypes.STRING(255),
+    allowNull: false
+  },
+  contact_email: {
+    type: DataTypes.STRING(255),
+    allowNull: false,
+    validate: {
+      isEmail: true
+    }
+  },
+  contact_phone: {
+    type: DataTypes.STRING(20),
     allowNull: false
   },
   event_type: {
@@ -28,8 +51,8 @@ const Booking = sequelize.define('Booking', {
     allowNull: false
   },
   status: {
-    type: DataTypes.ENUM('pending', 'confirmed', 'cancelled'),
-    defaultValue: 'pending'
+    type: DataTypes.ENUM('pending_payment', 'confirmed', 'completed', 'cancelled'),
+    defaultValue: 'pending_payment'
   },
   total_amount: {
     type: DataTypes.DECIMAL(10, 2),

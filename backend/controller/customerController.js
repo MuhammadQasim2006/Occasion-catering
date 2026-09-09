@@ -6,7 +6,7 @@ exports.getCustomerProfile = async (req, res) => {
     const { id } = req.params;
 
     // Convert both IDs to numbers before comparing
-    const userId = Number(req.user.id);
+    const userId = Number(req.user.user_id);
     const customerId = Number(id);
 
     // Only admins or the customer themselves can access the profile
@@ -60,7 +60,7 @@ exports.updateCustomerProfile = async (req, res) => {
     const { first_name, last_name, phone } = req.body;
 
     // Convert both IDs to numbers
-    const userId = Number(req.user.id);
+    const userId = Number(req.user.user_id);
     const customerId = Number(id);
 
     // Only admins or the customer themselves can update the profile

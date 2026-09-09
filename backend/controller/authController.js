@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const { Op } = require("sequelize");
+const Customer = require("../models/Customer");
+const { Op, fn, col, where } = require("sequelize");
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -30,10 +31,10 @@ exports.register = async (req, res) => {
     }
 
     // Check if user exists (case-insensitive)
+    // MySQL has no ILIKE operator (that's Postgres-only) — match
+    // case-insensitively via LOWER() instead.
     const existingUser = await User.findOne({
-      where: {
-        email: { [Op.iLike]: email },
-      },
+      where: where(fn("LOWER", col("email")), email.toLowerCase()),
     });
 
     if (existingUser) {
@@ -50,6 +51,17 @@ exports.register = async (req, res) => {
       name,
       phone: phone || null,
       role: "customer",
+    });
+
+    // Every booking/payment lookup expects a Customer row tied to this
+    // user, so create it now rather than leaving new accounts unable to
+    // book anything until some other flow creates one.
+    const [firstName, ...rest] = name.trim().split(" ");
+    await Customer.create({
+      user_id: user.user_id,
+      first_name: firstName || name,
+      last_name: rest.join(" ") || "",
+      phone: phone || null,
     });
 
     // Generate token
@@ -92,9 +104,7 @@ exports.login = async (req, res) => {
 
     // Find user
     const user = await User.findOne({
-      where: {
-        email: { [Op.iLike]: email },
-      },
+      where: where(fn("LOWER", col("email")), email.toLowerCase()),
     });
 
     if (!user) {
