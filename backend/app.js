@@ -7,6 +7,9 @@ const packageRoutes = require('./routes/packages');
 const bookingRoutes = require('./routes/bookingRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const customerRoutes = require('./routes/customerRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const tourRoutes = require('./routes/tourRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 
 const app = express();
 
@@ -35,6 +38,9 @@ app.use('/api/packages', packageRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/tours', tourRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

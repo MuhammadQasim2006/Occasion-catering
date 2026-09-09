@@ -4,6 +4,8 @@ const Customer = require('./Customer');
 const Category = require('./Category');
 const CateringPackage = require('./CateringPackage');
 const MenuItem = require('./MenuItem');
+const TourOperator = require('./TourOperator');
+const TourPackage = require('./TourPackage');
 const Booking = require('./Booking');
 const BookingItem = require('./BookingItem');
 const Payment = require('./Payment');
@@ -21,6 +23,14 @@ CateringPackage.belongsTo(Category, { foreignKey: 'category_id' });
 // CateringPackage <-> MenuItem (1:many)
 CateringPackage.hasMany(MenuItem, { foreignKey: 'package_id' });
 MenuItem.belongsTo(CateringPackage, { foreignKey: 'package_id' });
+
+// TourOperator <-> TourPackage (1:many)
+TourOperator.hasMany(TourPackage, { foreignKey: 'operator_id' });
+TourPackage.belongsTo(TourOperator, { foreignKey: 'operator_id' });
+
+// CateringPackage <-> TourPackage (1:many)
+CateringPackage.hasMany(TourPackage, { foreignKey: 'package_id' });
+TourPackage.belongsTo(CateringPackage, { foreignKey: 'package_id' });
 
 // Customer <-> Booking (1:many)
 Customer.hasMany(Booking, { foreignKey: 'customer_id' });
@@ -49,6 +59,8 @@ module.exports = {
   Category,
   CateringPackage,
   MenuItem,
+  TourOperator,
+  TourPackage,
   Booking,
   BookingItem,
   Payment,

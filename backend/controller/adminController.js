@@ -1,4 +1,4 @@
-const { CateringPackage, Category, MenuItem } = require('../models');
+const { CateringPackage, Category, MenuItem, Booking, Customer, BookingItem, Payment } = require('../models');
 
 // POST /api/packages (Admin only)
 exports.createPackage = async (req, res) => {
@@ -141,6 +141,84 @@ exports.deletePackage = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete package'
+    });
+  }
+};
+
+// GET /api/admin/bookings (Admin only)
+exports.getAllBookings = async (req, res) => {
+  try {
+    const bookings = await Booking.findAll({
+      order: [
+        ['created_at', 'DESC'],
+        ['booking_id', 'DESC']
+      ],
+      include: [
+        { model: Customer },
+        {
+          model: BookingItem,
+          include: [{ model: CateringPackage }, { model: MenuItem }]
+        },
+        { model: Payment }
+      ]
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: bookings
+    });
+  } catch (error) {
+    console.error('Get all bookings error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve bookings'
+    });
+  }
+};
+
+// PATCH /api/admin/bookings/:id/status (Admin only)
+exports.updateBookingStatus = async (req, res) => {
+  try {
+    const bookingId = Number(req.params.id);
+    const { status } = req.body;
+
+    if (!Number.isInteger(bookingId) || bookingId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking ID must be a positive integer'
+      });
+    }
+
+    const allowedStatuses = ['pending', 'confirmed', 'cancelled'];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'status must be one of: pending, confirmed, cancelled'
+      });
+    }
+
+    const booking = await Booking.findByPk(bookingId);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    await booking.update({ status });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Booking status updated successfully',
+      data: booking
+    });
+  } catch (error) {
+    console.error('Update booking status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update booking status'
     });
   }
 };

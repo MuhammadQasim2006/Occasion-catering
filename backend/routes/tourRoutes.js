@@ -3,7 +3,7 @@ const express = require("express");
 const {
   getAllTours,
   getTourById,
-} = require("../controllers/tourController");
+} = require("../controller/tourController");
 
 const router = express.Router();
 

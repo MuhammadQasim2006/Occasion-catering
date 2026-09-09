@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const sequelize = require("./src/config/db");
+const sequelize = require("./config/db");
 
 const {
   Category,
@@ -8,7 +8,7 @@ const {
   MenuItem,
   TourOperator,
   TourPackage,
-} = require("./src/models");
+} = require("./models");
 
 async function findOrCreateByField(
   Model,
