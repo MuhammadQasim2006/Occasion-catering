@@ -1,21 +1,77 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useBookingsStore } from '@/stores/bookings'
+import { useAuthStore } from '@/stores/auth'
+import { api } from '@/utils/api'
 
-// Post-booking confirmation screen. Once payment goes live (Day 7,
-// PayFast initiate/notify), this view will poll GET /api/payments/:bookingId
-// after the sandbox redirect and swap the status badge below from mock data
-// to the live Payments.status value — see plan Section 5's payment flow note.
+// Post-booking confirmation screen. Booking data comes from the real
+// backend now. When PayFast redirects back here (return_url/cancel_url
+// both point at this page, see paymentController.initiatePayment), the
+// ITN webhook that actually confirms payment can land a moment after the
+// browser's own redirect — so on arrival we poll GET /api/payments/:id a
+// few times until the status settles, rather than trusting a snapshot
+// that might be a beat stale.
 
 const route = useRoute()
 const bookings = useBookingsStore()
+const auth = useAuthStore()
 
 const bookingId = computed(() => Number(route.params.bookingId))
 
 const booking = computed(
   () => bookings.bookings.find((b) => b.booking_id === bookingId.value) ?? null,
 )
+
+const isLoading = ref(true)
+const loadError = ref('')
+let pollTimer = null
+
+async function loadBooking() {
+  loadError.value = ''
+  isLoading.value = true
+  try {
+    await bookings.fetchBooking(bookingId.value)
+  } catch (err) {
+    loadError.value = err.message || "We couldn't find that booking."
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function pollPaymentStatus() {
+  const maxAttempts = 8
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const res = await api.get(`/payments/${bookingId.value}`, auth.token)
+      if (res.data.booking_status !== 'pending_payment') {
+        await bookings.fetchBooking(bookingId.value)
+        return
+      }
+    } catch {
+      // Payment row might not exist yet on the very first attempt — keep
+      // polling rather than surfacing a transient error to the customer.
+    }
+    await new Promise((resolve) => {
+      pollTimer = setTimeout(resolve, 1500)
+    })
+  }
+  // Timed out waiting — refresh once more so the page at least reflects
+  // whatever the last known state is, rather than looking frozen.
+  await bookings.fetchBooking(bookingId.value)
+}
+
+onMounted(async () => {
+  await loadBooking()
+  if (booking.value?.status === 'pending_payment' && route.query.payment) {
+    pollPaymentStatus()
+  }
+})
+
+onUnmounted(() => {
+  if (pollTimer) clearTimeout(pollTimer)
+})
+
 
 const guestCount = computed(() => booking.value?.guest_count ?? 0)
 
@@ -97,11 +153,11 @@ function downloadCalendarInvite() {
   URL.revokeObjectURL(url)
 }
 
-// Payment now happens on the simulated Payment.vue step, before the
-// customer ever lands here — so "what happens next" has to reflect
-// whatever that outcome actually was, not assume payment is still ahead.
-// Once real ITN handling lands (Day 7), swap 'confirmed' from a static
-// booking.status read to whatever GET /api/payments/:bookingId returns.
+// Payment happens on PayFast's hosted page, before the customer ever lands
+// back here — so "what happens next" has to reflect whatever that outcome
+// actually was, not assume payment is still ahead. booking.status is kept
+// current by the ITN webhook (see paymentController.handleITNWebhook) and
+// by the polling this page does right after a PayFast redirect.
 const nextSteps = computed(() => {
   const bookingStatus = booking.value?.status
 
@@ -183,7 +239,11 @@ const heroCopy = computed(() => {
 
 <template>
   <main id="main-content" class="confirmation">
-    <section class="confirmation__band">
+    <section v-if="isLoading" class="confirmation__band">
+      <p class="confirmation__eyebrow">Loading your booking…</p>
+    </section>
+
+    <section v-else class="confirmation__band">
       <div
         class="confirmation__mark"
         :class="`confirmation__mark--${status.tone}`"
@@ -221,7 +281,8 @@ const heroCopy = computed(() => {
       </p>
     </section>
 
-    <section v-if="booking" class="confirmation__body">
+    <section v-if="isLoading"></section>
+    <section v-else-if="booking" class="confirmation__body">
       <div class="confirmation__col confirmation__col--main">
         <div class="confirmation__card">
           <div class="confirmation__card-header">

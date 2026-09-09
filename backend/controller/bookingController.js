@@ -1,0 +1,241 @@
+const { sequelize, Booking, BookingItem, Customer, CateringPackage, Payment } = require('../models');
+
+// Mirrors occasion-frontend/src/utils/coupons.js. There's no Coupons table
+// yet, so this is the same demo list kept in sync on both sides — but
+// unlike the frontend, this copy is what actually determines the amount
+// PayFast charges, since a client-sent discount_amount can't be trusted.
+const COUPONS = {
+  OCCASION10: 0.1,
+  WELCOME5: 0.05,
+};
+const SERVICE_FEE_RATE = 0.05;
+
+// POST /api/bookings - Create a booking
+// Body: {
+//   event_date, event_time, guest_count, special_requests,
+//   contact_name, contact_email, contact_phone,
+//   coupon_code, discount_amount,
+//   items: [{ package_id, guest_count?, quantity? }]
+// }
+exports.createBooking = async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const {
+      event_date,
+      event_time,
+      guest_count,
+      special_requests,
+      contact_name,
+      contact_email,
+      contact_phone,
+      coupon_code,
+      items,
+    } = req.body;
+
+    if (!event_date || !guest_count || !contact_name || !contact_email || !contact_phone) {
+      await t.rollback();
+      return res.status(400).json({
+        success: false,
+        error: 'event_date, guest_count, contact_name, contact_email and contact_phone are required',
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'At least one package item is required' });
+    }
+
+    const customer = await Customer.findOne({ where: { user_id: req.user.user_id }, transaction: t });
+    if (!customer) {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: 'No customer profile for this account' });
+    }
+
+    const packageIds = [...new Set(items.map((i) => i.package_id))];
+    const packages = await CateringPackage.findAll({ where: { package_id: packageIds }, transaction: t });
+    const packageMap = new Map(packages.map((p) => [p.package_id, p]));
+
+    const missing = packageIds.filter((id) => !packageMap.has(id));
+    if (missing.length) {
+      await t.rollback();
+      return res.status(400).json({ success: false, error: `Unknown package_id(s): ${missing.join(', ')}` });
+    }
+
+    // Prices are looked up server-side from CateringPackage — never trust a
+    // price the client might send — so a tampered request can't book a
+    // package for less than it costs.
+    let subtotal = 0;
+    const lineItems = items.map((item) => {
+      const pkg = packageMap.get(item.package_id);
+      const quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
+      const itemGuestCount = item.guest_count && item.guest_count > 0 ? item.guest_count : guest_count;
+      const lineTotal = Number(pkg.base_price) * itemGuestCount * quantity;
+      subtotal += lineTotal;
+      return {
+        package_id: pkg.package_id,
+        menu_item_id: item.menu_item_id || null,
+        quantity,
+        line_total: lineTotal.toFixed(2),
+      };
+    });
+
+    const serviceFee = Math.round(subtotal * SERVICE_FEE_RATE);
+
+    const couponRate = coupon_code ? COUPONS[coupon_code.trim().toUpperCase()] : undefined;
+    const discountAmount = couponRate ? Math.round(subtotal * couponRate) : 0;
+
+    const totalAmount = Math.max(subtotal + serviceFee - discountAmount, 0).toFixed(2);
+
+    const booking = await Booking.create(
+      {
+        customer_id: customer.customer_id,
+        event_date,
+        event_time: event_time || null,
+        guest_count,
+        special_requests: special_requests || null,
+        contact_name,
+        contact_email,
+        contact_phone,
+        event_type: req.body.event_type || 'general',
+        status: 'pending_payment',
+        total_amount: totalAmount,
+      },
+      { transaction: t },
+    );
+
+    await BookingItem.bulkCreate(
+      lineItems.map((li) => ({ ...li, booking_id: booking.booking_id })),
+      { transaction: t },
+    );
+
+    await Payment.create(
+      {
+        booking_id: booking.booking_id,
+        amount: totalAmount,
+        method: 'payfast',
+        status: 'pending',
+      },
+      { transaction: t },
+    );
+
+    await t.commit();
+
+    const fullBooking = await Booking.findByPk(booking.booking_id, {
+      include: [{ model: BookingItem, include: [CateringPackage] }, { model: Payment }],
+    });
+
+    res.status(201).json({ success: true, data: fullBooking });
+  } catch (error) {
+    await t.rollback();
+    console.error('Create booking error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create booking',
+    });
+  }
+};
+
+// GET /api/bookings - Get user's bookings
+exports.getUserBookings = async (req, res) => {
+  try {
+    const customer = await Customer.findOne({ where: { user_id: req.user.user_id } });
+    if (!customer) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const bookings = await Booking.findAll({
+      where: { customer_id: customer.customer_id },
+      include: [{ model: BookingItem, include: [CateringPackage] }, { model: Payment }],
+      order: [['booking_id', 'DESC']],
+    });
+
+    res.json({
+      success: true,
+      data: bookings
+    });
+  } catch (error) {
+    console.error('Get bookings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch bookings'
+    });
+  }
+};
+
+// GET /api/bookings/:id - Get single booking
+exports.getBookingById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const booking = await Booking.findByPk(id, {
+      include: [{ model: BookingItem, include: [CateringPackage] }, { model: Payment }],
+    });
+
+    if (!booking) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+
+    if (req.user.role !== 'admin') {
+      const customer = await Customer.findOne({ where: { user_id: req.user.user_id } });
+      if (!customer || booking.customer_id !== customer.customer_id) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: booking
+    });
+  } catch (error) {
+    console.error('Get booking error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch booking'
+    });
+  }
+};
+
+// PUT /api/bookings/:id/status - Update booking status
+exports.updateBookingStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['pending_payment', 'confirmed', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: `status must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    const booking = await Booking.findByPk(id);
+    if (!booking) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+
+    if (req.user.role !== 'admin') {
+      const customer = await Customer.findOne({ where: { user_id: req.user.user_id } });
+      if (!customer || booking.customer_id !== customer.customer_id) {
+        return res.status(403).json({ success: false, error: 'Access denied' });
+      }
+      // Customers may only cancel their own booking, and only before it's
+      // been paid — everything else (marking paid/completed) is server- or
+      // admin-driven.
+      if (status !== 'cancelled' || booking.status !== 'pending_payment') {
+        return res.status(403).json({ success: false, error: 'You can only cancel a booking pending payment' });
+      }
+    }
+
+    booking.status = status;
+    await booking.save();
+
+    res.json({
+      success: true,
+      data: booking
+    });
+  } catch (error) {
+    console.error('Update booking error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update booking'
+    });
+  }
+};

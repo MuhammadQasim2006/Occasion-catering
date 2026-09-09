@@ -92,9 +92,13 @@ function removePackage(index) {
   cart.removeItem(index)
 }
 
-function handleSubmit() {
+async function handleSubmit() {
   error.value = ''
 
+  if (!auth.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: '/checkout' } })
+    return
+  }
   if (!cart.items.length) {
     error.value = 'Your cart is empty — add a package before checking out.'
     return
@@ -118,31 +122,36 @@ function handleSubmit() {
 
   isSubmitting.value = true
 
-  // Stub call — swap for a real POST /api/bookings once wired (TICKET-013/014).
-  const booking = {
-    event_date: eventDate.value,
-    event_time: eventTime.value || null,
-    guest_count: guestCount.value,
-    special_requests: specialRequests.value || null,
-    contact_name: contactName.value,
-    contact_email: contactEmail.value,
-    contact_phone: contactPhone.value,
-    status: 'pending_payment',
-    total_amount: total.value,
-    coupon_code: appliedCoupon.value?.code || null,
-    discount_amount: discount.value,
-    items: cart.items,
+  try {
+    // Server recomputes prices/service fee/coupon discount from scratch —
+    // this payload's total/discount fields are for display only, the
+    // amount PayFast actually charges comes from the backend.
+    const payload = {
+      event_date: eventDate.value,
+      event_time: eventTime.value || null,
+      guest_count: guestCount.value,
+      special_requests: specialRequests.value || null,
+      contact_name: contactName.value,
+      contact_email: contactEmail.value,
+      contact_phone: contactPhone.value,
+      coupon_code: appliedCoupon.value?.code || null,
+      items: cart.items.map((item) => ({
+        package_id: item.package_id,
+        guest_count: item.guest_count || guestCount.value,
+      })),
+    }
+
+    const booking = await bookings.createBooking(payload)
+    cart.clear()
+    // Hands off to the real PayFast sandbox redirect (src/views/Payment.vue),
+    // which calls POST /api/payments/initiate and auto-submits the hidden
+    // form to PayFast's hosted payment page.
+    router.push(`/payment/${booking.booking_id}`)
+  } catch (err) {
+    error.value = err.message || 'Something went wrong creating your booking. Please try again.'
+  } finally {
+    isSubmitting.value = false
   }
-
-  bookings.addBooking(booking)
-  cart.clear()
-  isSubmitting.value = false
-
-  const newBookingId = bookings.bookings[bookings.bookings.length - 1].booking_id
-  // Goes to the simulated payment step for now (src/views/Payment.vue).
-  // Swap this line for a POST /api/payments/initiate + PayFast redirect
-  // once the real sandbox integration is wired in (Day 7).
-  router.push(`/payment/${newBookingId}`)
 }
 </script>
 

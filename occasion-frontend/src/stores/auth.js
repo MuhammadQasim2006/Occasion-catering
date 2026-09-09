@@ -1,15 +1,11 @@
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { api } from '@/utils/api'
 
-// Stub store — fake auth state until Karah's live endpoints
-// (POST /api/auth/login, /register, GET /api/auth/me) are wired in.
-// Shape matches the API contract draft in TICKET-001 so the swap to real
-// calls later is a drop-in replacement, not a rewrite.
-//
-// Persisted to localStorage like the cart/wishlist/bookings stores — without
-// this, a refresh silently logs the user out (token resets to null on
-// reload), which makes the "logged in" nav state, AccountMenu, and any
-// auth-gated route impossible to actually test or use across a page load.
+// Wired to the real backend now (POST /api/auth/login, /register,
+// GET /api/auth/me) — no more fake tokens. Shape (user, token, isLoggedIn)
+// stays the same as the old stub so Login.vue/Register.vue/router guard
+// don't need to change how they read this store.
 const STORAGE_KEY = 'occasion:auth:v1'
 
 function loadFromStorage() {
@@ -23,8 +19,8 @@ function loadFromStorage() {
 
 export const useAuthStore = defineStore('auth', () => {
   const stored = loadFromStorage()
-  const user = ref(stored?.user ?? null) // { user_id, email, role } once wired
-  const token = ref(stored?.token ?? null) // JWT string once wired
+  const user = ref(stored?.user ?? null) // { user_id, email, name, role }
+  const token = ref(stored?.token ?? null) // JWT string
 
   const isLoggedIn = computed(() => !!token.value)
 
@@ -44,10 +40,28 @@ export const useAuthStore = defineStore('auth', () => {
     { deep: true },
   )
 
-  // Fake login — replace body with a real axios call to /api/auth/login
-  function login(email) {
-    user.value = { user_id: 0, email, role: 'customer' }
-    token.value = 'fake-jwt-token'
+  async function login(email, password) {
+    const res = await api.post('/auth/login', { email, password })
+    user.value = res.data.user
+    token.value = res.data.token
+  }
+
+  async function register({ email, password, name, phone }) {
+    const res = await api.post('/auth/register', { email, password, name, phone })
+    user.value = res.data.user
+    token.value = res.data.token
+  }
+
+  async function fetchMe() {
+    if (!token.value) return
+    try {
+      const res = await api.get('/auth/me', token.value)
+      user.value = res.data.user
+    } catch {
+      // Token invalid/expired — clear the session rather than leave a
+      // stale "logged in" state the backend won't honour.
+      logout()
+    }
   }
 
   function logout() {
@@ -55,5 +69,5 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
   }
 
-  return { user, token, isLoggedIn, login, logout }
+  return { user, token, isLoggedIn, login, register, fetchMe, logout }
 })

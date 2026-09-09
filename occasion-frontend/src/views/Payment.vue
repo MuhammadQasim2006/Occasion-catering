@@ -1,123 +1,92 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import { useBookingsStore } from '@/stores/bookings'
-import { sendBookingConfirmationEmail } from '@/utils/email'
+import { useAuthStore } from '@/stores/auth'
+import { api } from '@/utils/api'
 
-// SIMULATED PAYMENT STEP — stands in for the real PayFast sandbox redirect
-// until Day 7's payments work lands. Card fields below are cosmetic only;
-// nothing is transmitted or stored. To swap this for the real thing:
-//   1. Delete this component (or keep it behind a feature flag as the
-//      documented fallback — see plan Section 11).
-//   2. In Checkout.vue, replace the router.push(`/payment/${id}`) call with
-//      a POST to /api/payments/initiate, then build+submit the hidden form
-//      that redirects the browser to PayFast's hosted page.
-//   3. Confirmation.vue starts polling GET /api/payments/:bookingId instead
-//      of reading a status this page already set locally.
-// Everything downstream (Confirmation.vue, the bookings store, the status
-// badge) already reads from the same `bookings` store either way, so no
-// other file needs to change.
+// Real PayFast sandbox handoff: fetch the booking, call
+// POST /api/payments/initiate for the signed field set, then auto-submit a
+// hidden form to PayFast's hosted page (PROCESS_URL). PayFast redirects the
+// browser back to return_url/cancel_url (Confirmation.vue) once the
+// customer finishes there, and separately posts the ITN webhook straight
+// to the backend to actually confirm the booking.
 
 const route = useRoute()
-const router = useRouter()
 const bookings = useBookingsStore()
+const auth = useAuthStore()
 
 const bookingId = computed(() => Number(route.params.bookingId))
 const booking = computed(
   () => bookings.bookings.find((b) => b.booking_id === bookingId.value) ?? null,
 )
 
-const cardName = ref('')
-const cardNumber = ref('')
-const cardExpiry = ref('')
-const cardCvv = ref('')
+const isLoading = ref(true)
+const isRedirecting = ref(false)
+const loadError = ref('')
 
-const errors = ref({})
-const isProcessing = ref(false)
-
-function formatCardNumber(event) {
-  const digits = event.target.value.replace(/\D/g, '').slice(0, 16)
-  cardNumber.value = digits.replace(/(.{4})/g, '$1 ').trim()
-}
-
-function formatExpiry(event) {
-  const digits = event.target.value.replace(/\D/g, '').slice(0, 4)
-  cardExpiry.value = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
-}
-
-function formatCvv(event) {
-  cardCvv.value = event.target.value.replace(/\D/g, '').slice(0, 3)
-}
-
-function validate() {
-  const fieldErrors = {}
-
-  if (!cardName.value.trim()) {
-    fieldErrors.cardName = 'Enter the name on the card.'
+async function loadBooking() {
+  loadError.value = ''
+  isLoading.value = true
+  try {
+    await bookings.fetchBooking(bookingId.value)
+  } catch (err) {
+    loadError.value = err.message || "We couldn't find that booking."
+  } finally {
+    isLoading.value = false
   }
-
-  const digits = cardNumber.value.replace(/\s/g, '')
-  if (digits.length !== 16) {
-    fieldErrors.cardNumber = 'Enter a 16-digit card number.'
-  }
-
-  const expiryMatch = cardExpiry.value.match(/^(\d{2})\/(\d{2})$/)
-  if (!expiryMatch) {
-    fieldErrors.cardExpiry = 'Use MM/YY format.'
-  } else {
-    const month = Number(expiryMatch[1])
-    const year = Number(`20${expiryMatch[2]}`)
-    const now = new Date()
-    const expiryDate = new Date(year, month)
-    if (month < 1 || month > 12) {
-      fieldErrors.cardExpiry = 'Enter a valid month.'
-    } else if (expiryDate < now) {
-      fieldErrors.cardExpiry = 'This card has expired.'
-    }
-  }
-
-  if (cardCvv.value.length !== 3) {
-    fieldErrors.cardCvv = 'Enter the 3-digit security code.'
-  }
-
-  errors.value = fieldErrors
-  return Object.keys(fieldErrors).length === 0
 }
 
-const formError = ref('')
+// Builds a real <form> and submits it so the browser navigates to
+// PayFast's hosted page with all the signed fields as POST data — this is
+// the standard PayFast "onsite payment" redirect pattern, not an API call
+// we read a response from.
+function submitToPayFast(action, fields) {
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = action
 
-function handlePay() {
-  formError.value = ''
-  if (!validate()) {
-    formError.value = "Please check the highlighted fields below — or just click Simulate Successful Payment, this form is cosmetic only."
-    return
+  Object.entries(fields).forEach(([name, value]) => {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
+  })
+
+  document.body.appendChild(form)
+  form.submit()
+}
+
+async function goToPayFast() {
+  loadError.value = ''
+  isRedirecting.value = true
+  try {
+    const res = await api.post('/payments/initiate', { booking_id: bookingId.value }, auth.token)
+    submitToPayFast(res.data.action, res.data.fields)
+    // Leaving isRedirecting true — the page is about to navigate away.
+  } catch (err) {
+    loadError.value = err.message || 'Could not start the PayFast payment. Please try again.'
+    isRedirecting.value = false
   }
-  simulate('complete')
 }
 
-function simulate(outcome) {
-  isProcessing.value = true
-  setTimeout(() => {
-    if (outcome === 'complete') {
-      bookings.updateStatus(bookingId.value, 'confirmed')
-      // Fire-and-forget: don't block the redirect on the email send, and
-      // don't fail the booking flow if EmailJS is unreachable or unset up.
-      sendBookingConfirmationEmail(booking.value)
-    } else if (outcome === 'failed') {
-      bookings.updateStatus(bookingId.value, 'pending_payment')
-    } else {
-      bookings.updateStatus(bookingId.value, 'cancelled')
-    }
-    isProcessing.value = false
-    router.push(`/confirmation/${bookingId.value}`)
-  }, 900)
-}
+onMounted(async () => {
+  await loadBooking()
+  if (booking.value && booking.value.status === 'pending_payment') {
+    goToPayFast()
+  }
+})
 </script>
 
 <template>
   <main id="main-content" class="payment">
-    <div v-if="!booking" class="payment__missing">
-      <p>We can't find that booking.</p>
+    <div v-if="isLoading" class="payment__missing">
+      <p>Loading your booking…</p>
+    </div>
+
+    <div v-else-if="!booking || loadError" class="payment__missing">
+      <p>{{ loadError || "We can't find that booking." }}</p>
       <RouterLink to="/checkout" class="btn btn--primary">Back to Checkout</RouterLink>
     </div>
 
@@ -168,96 +137,29 @@ function simulate(outcome) {
         </div>
         <div class="payment__summary-row">
           <dt>Payment method</dt>
-          <dd>PayFast (simulated)</dd>
+          <dd>PayFast (sandbox)</dd>
         </div>
       </dl>
 
-      <form class="payment__form" novalidate @submit.prevent="handlePay">
-        <label class="payment__field">
-          <span class="payment__label">Name on card</span>
-          <input
-            v-model="cardName"
-            type="text"
-            placeholder="e.g. Thandeka Nkosi"
-            autocomplete="cc-name"
-          />
-          <span v-if="errors.cardName" class="payment__error">{{ errors.cardName }}</span>
-        </label>
+      <p v-if="loadError" class="payment__form-error" role="alert">{{ loadError }}</p>
 
-        <label class="payment__field">
-          <span class="payment__label">Card number</span>
-          <input
-            :value="cardNumber"
-            type="text"
-            inputmode="numeric"
-            placeholder="4242 4242 4242 4242"
-            autocomplete="cc-number"
-            @input="formatCardNumber"
-          />
-          <span v-if="errors.cardNumber" class="payment__error">{{ errors.cardNumber }}</span>
-        </label>
-
-        <div class="payment__field-row">
-          <label class="payment__field">
-            <span class="payment__label">Expiry</span>
-            <input
-              :value="cardExpiry"
-              type="text"
-              inputmode="numeric"
-              placeholder="MM/YY"
-              autocomplete="cc-exp"
-              @input="formatExpiry"
-            />
-            <span v-if="errors.cardExpiry" class="payment__error">{{ errors.cardExpiry }}</span>
-          </label>
-
-          <label class="payment__field">
-            <span class="payment__label">CVV</span>
-            <input
-              :value="cardCvv"
-              type="text"
-              inputmode="numeric"
-              placeholder="123"
-              autocomplete="cc-csc"
-              @input="formatCvv"
-            />
-            <span v-if="errors.cardCvv" class="payment__error">{{ errors.cardCvv }}</span>
-          </label>
-        </div>
-
+      <div class="payment__redirect">
         <p class="payment__note">
-          This form stands in for PayFast's hosted payment page while the real sandbox
-          integration is being wired up — no card details are sent anywhere.
+          You'll be taken to PayFast's secure sandbox page to complete this payment. Once
+          you're done there, PayFast sends you back here automatically.
         </p>
-
-        <p v-if="formError" class="payment__form-error" role="alert">{{ formError }}</p>
-
-        <button type="submit" class="btn btn--primary" :disabled="isProcessing">
-          {{ isProcessing ? 'Processing…' : `Pay R${booking.total_amount.toLocaleString()}` }}
+        <button
+          type="button"
+          class="btn btn--primary"
+          :disabled="isRedirecting"
+          @click="goToPayFast"
+        >
+          {{ isRedirecting ? 'Redirecting to PayFast…' : `Pay R${booking.total_amount.toLocaleString()} with PayFast` }}
         </button>
-      </form>
-
-      <details class="payment__test-actions">
-        <summary>Test a different outcome</summary>
-        <div class="payment__test-buttons">
-          <button
-            type="button"
-            class="btn btn--secondary"
-            :disabled="isProcessing"
-            @click="simulate('failed')"
-          >
-            Simulate Failed Payment
-          </button>
-          <button
-            type="button"
-            class="payment__cancel-link"
-            :disabled="isProcessing"
-            @click="simulate('cancelled')"
-          >
-            Cancel and return to booking
-          </button>
-        </div>
-      </details>
+        <RouterLink to="/checkout" class="payment__cancel-link">
+          Cancel and return to checkout
+        </RouterLink>
+      </div>
     </div>
   </main>
 </template>
