@@ -34,6 +34,26 @@ const CateringPackage = sequelize.define('CateringPackage', {
   image_url: {
     type: DataTypes.STRING(255),
     allowNull: true
+  },
+  guests_label: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  courses_label: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  feature_label: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  badge: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  is_featured: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'catering_packages',

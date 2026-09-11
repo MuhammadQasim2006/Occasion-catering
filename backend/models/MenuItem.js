@@ -23,6 +23,15 @@ const MenuItem = sequelize.define('MenuItem', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  course_type: {
+    type: DataTypes.ENUM('starter', 'main', 'dessert'),
+    allowNull: false,
+    defaultValue: 'main'
+  },
+  dietary_tags: {
+    type: DataTypes.JSON,
+    allowNull: true
+  },
   price_addon: {
     type: DataTypes.DECIMAL(10, 2),
     defaultValue: 0.00

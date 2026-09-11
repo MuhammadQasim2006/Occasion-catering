@@ -34,6 +34,11 @@ CREATE TABLE catering_packages (
     base_price DECIMAL(10, 2) NOT NULL,
     event_size ENUM('large', 'small', 'tour') NOT NULL,
     image_url VARCHAR(255),
+    guests_label VARCHAR(50),
+    courses_label VARCHAR(50),
+    feature_label VARCHAR(100),
+    badge VARCHAR(50),
+    is_featured BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT fk_catering_categories FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE RESTRICT
 );
 
@@ -43,6 +48,8 @@ CREATE TABLE menu_items (
     package_id INT NOT NULL,
     name VARCHAR(150) NOT NULL,
     description TEXT,
+    course_type ENUM('starter', 'main', 'dessert') NOT NULL DEFAULT 'main',
+    dietary_tags JSON,
     price_addon DECIMAL(10, 2) DEFAULT 0.00,
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT fk_menu_items_packages FOREIGN KEY (package_id) REFERENCES catering_packages(package_id) ON DELETE CASCADE
