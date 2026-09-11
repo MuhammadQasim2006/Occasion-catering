@@ -30,7 +30,7 @@ exports.getPackages = async (req, res) => {
         {
           model: MenuItem,
           required: false,
-          attributes: ['menu_item_id', 'name', 'description', 'price_addon', 'is_default']
+          attributes: ['menu_item_id', 'name', 'description', 'course_type', 'dietary_tags', 'price_addon', 'is_default']
         }
       ],
       order: [['name', 'ASC']]
@@ -63,7 +63,7 @@ exports.getPackageById = async (req, res) => {
         {
           model: MenuItem,
           required: false,
-          attributes: ['menu_item_id', 'name', 'description', 'price_addon', 'is_default']
+          attributes: ['menu_item_id', 'name', 'description', 'course_type', 'dietary_tags', 'price_addon', 'is_default']
         }
       ]
     });

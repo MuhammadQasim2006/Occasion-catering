@@ -1,11 +1,11 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingsStore } from '@/stores/bookings'
 import { useCartStore } from '@/stores/cart'
 import { useWishlistStore } from '@/stores/wishlist'
-import { packages } from '@/data/mockPackages'
+import { fetchPackages } from '@/services/packages'
 
 // Logged-in customer dashboard. Reads from the auth, bookings, cart, and
 // wishlist Pinia stores (TICKET-006) — a real GET /api/bookings and
@@ -40,10 +40,20 @@ const stats = computed(() => [
 
 const wishlistPreview = computed(() =>
   wishlist.packageIds
-    .map((id) => packages.find((pkg) => pkg.package_id === id))
+    .map((id) => allPackages.value.find((pkg) => pkg.package_id === id))
     .filter(Boolean)
     .slice(0, 3),
 )
+
+const allPackages = ref([])
+
+onMounted(async () => {
+  try {
+    allPackages.value = await fetchPackages()
+  } catch {
+    allPackages.value = []
+  }
+})
 
 function statusLabel(status) {
   return (

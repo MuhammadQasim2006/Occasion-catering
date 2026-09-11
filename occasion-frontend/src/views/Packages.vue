@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { categories, fetchPackages } from '@/data/mockPackages'
+import { fetchCategories, fetchPackages } from '@/services/packages'
 import CategoryFilter from '@/components/packages/CategoryFilter.vue'
 import PackageCard from '@/components/packages/PackageCard.vue'
 import PackageCardSkeleton from '@/components/packages/PackageCardSkeleton.vue'
@@ -20,9 +20,10 @@ const sortBy = ref('recommended') // 'recommended' | 'price-asc' | 'price-desc'
 const searchQuery = ref(route.query.q || '')
 
 const allPackages = ref([])
+const categories = ref([])
 const status = ref('loading') // 'loading' | 'success' | 'error'
 
-const categoriesWithAll = computed(() => [{ category_id: 'all', name: 'All' }, ...categories])
+const categoriesWithAll = computed(() => [{ category_id: 'all', name: 'All' }, ...categories.value])
 
 const eventSizes = [
   { id: 'all', label: 'Any Size' },
@@ -34,7 +35,9 @@ const eventSizes = [
 async function loadPackages() {
   status.value = 'loading'
   try {
-    allPackages.value = await fetchPackages()
+    const [packagesResult, categoriesResult] = await Promise.all([fetchPackages(), fetchCategories()])
+    allPackages.value = packagesResult
+    categories.value = categoriesResult
     status.value = 'success'
   } catch {
     status.value = 'error'

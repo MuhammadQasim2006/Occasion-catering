@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, RouterLink, useRouter } from 'vue-router'
-import { fetchPackageById, fetchMenuItems, fetchPackages } from '@/data/mockPackages'
+import { fetchPackageById, fetchMenuItems, fetchPackages } from '@/services/packages'
 import { useCartStore } from '@/stores/cart'
 import { useWishlistStore } from '@/stores/wishlist'
 import { pseudoRating } from '@/utils/rating'
@@ -10,7 +10,7 @@ import PackageCard from '@/components/packages/PackageCard.vue'
 
 // Shell for GET /api/packages/:id (see API contract, TICKET-001).
 // Route: /packages/:id — id available via route.params.id.
-// Menu customisation isn't a real table yet (see note in mockPackages.js) —
+// Menu customisation selections aren't persisted as their own table yet —
 // selections are captured client-side and attached to the cart item so the
 // shape is ready whenever a MenuSelections table/endpoint exists.
 

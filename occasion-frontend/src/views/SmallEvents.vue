@@ -1,14 +1,9 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import PackageCard from '@/components/packages/PackageCard.vue'
 import CategoryFilter from '@/components/packages/CategoryFilter.vue'
-import { packages } from '@/data/mockPackages'
-
-// Filter small event packages
-const smallPackages = computed(() => 
-  packages.filter(pkg => pkg.event_size === 'small')
-)
+import { fetchPackages } from '@/services/packages'
 
 // Category filter
 const categories = [
@@ -20,6 +15,20 @@ const categories = [
 
 const activeCategory = ref('all')
 const searchQuery = ref('')
+const smallPackages = ref([])
+const status = ref('loading') // 'loading' | 'success' | 'error'
+
+async function loadPackages() {
+  status.value = 'loading'
+  try {
+    smallPackages.value = await fetchPackages({ event_size: 'small' })
+    status.value = 'success'
+  } catch {
+    status.value = 'error'
+  }
+}
+
+onMounted(loadPackages)
 
 const filteredPackages = computed(() => {
   let result = smallPackages.value
@@ -110,12 +119,23 @@ function selectCategory(id) {
       />
 
       <!-- Results count -->
-      <p v-if="filteredPackages.length" class="small-events__count">
+      <p v-if="status === 'success' && filteredPackages.length" class="small-events__count">
         {{ filteredPackages.length }} package{{ filteredPackages.length === 1 ? '' : 's' }} found
       </p>
 
+      <!-- Loading state -->
+      <div v-if="status === 'loading'" class="small-events__empty" aria-busy="true">
+        <p>Loading packages…</p>
+      </div>
+
+      <!-- Error state -->
+      <div v-else-if="status === 'error'" class="small-events__empty">
+        <p>Couldn't load packages right now.</p>
+        <button class="small-events__reset" @click="loadPackages">Try Again</button>
+      </div>
+
       <!-- Package Grid -->
-      <div v-if="filteredPackages.length" class="small-events__grid">
+      <div v-else-if="filteredPackages.length" class="small-events__grid">
         <PackageCard
           v-for="pkg in filteredPackages"
           :key="pkg.package_id"

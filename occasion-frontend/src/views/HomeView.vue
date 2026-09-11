@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RouterLink } from 'vue-router'
-import { fetchPackages } from '@/data/mockPackages'
+import { fetchPackages } from '@/services/packages'
 import PackageCard from '@/components/packages/PackageCard.vue'
 import PackageCardSkeleton from '@/components/packages/PackageCardSkeleton.vue'
 
@@ -85,7 +85,7 @@ onMounted(restartAutoplay)
 onBeforeUnmount(() => clearInterval(slideTimer))
 
 // --- Package grid: async load with loading / error / empty states -------
-// Homepage shows only the curated `featured` set (see mockPackages.js); the
+// Homepage shows only the curated `featured` set (is_featured in the DB); the
 // full, filterable catalogue lives on the /packages page.
 const allPackages = ref([])
 const status = ref('loading') // 'loading' | 'success' | 'error'
