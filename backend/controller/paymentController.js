@@ -13,18 +13,22 @@ exports.initiatePayment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'booking_id is required' });
     }
 
-    const customer = await Customer.findOne({ where: { user_id: req.user.user_id } });
-    if (!customer) {
-      return res.status(403).json({ success: false, message: 'No customer profile for this account' });
-    }
-
     const booking = await Booking.findByPk(booking_id, { include: [{ model: Payment }] });
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    if (booking.customer_id !== customer.customer_id && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Access denied' });
+    // Logged-in: must own the booking (or be admin). Guest (no req.user —
+    // this route uses optionalAuth): no account to check against, so we
+    // let it through on the booking_id itself, same as the booking lookup.
+    if (req.user) {
+      const customer = await Customer.findOne({ where: { user_id: req.user.user_id } });
+      if (!customer) {
+        return res.status(403).json({ success: false, message: 'No customer profile for this account' });
+      }
+      if (booking.customer_id !== customer.customer_id && req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Access denied' });
+      }
     }
 
     let payment = booking.Payment;
@@ -68,7 +72,12 @@ exports.initiatePayment = async (req, res) => {
       mPaymentId: merchantPaymentId,
       amount: payment.amount,
       itemName: `Occasion Booking #${booking.booking_id}`,
-      itemDescription: `Catering booking for ${booking.guest_count} guests on ${booking.event_date}`,
+      // booking.event_date comes back from Sequelize as a JS Date object —
+      // interpolating it directly stringifies to the verbose
+      // "Tue Dec 01 2026 00:00:00 GMT+0000 (Coordinated Universal Time)"
+      // form, which is neither what a customer should see in their
+      // PayFast summary nor what we intend to sign. Format it plainly.
+      itemDescription: `Catering booking for ${booking.guest_count} guests on ${new Date(booking.event_date).toISOString().split('T')[0]}`,
       customStr1: String(booking.booking_id),
     });
 
@@ -90,9 +99,7 @@ exports.getPaymentStatus = async (req, res) => {
   try {
     const { bookingId } = req.params;
 
-    const customer = await Customer.findOne({
-      where: { user_id: req.user.user_id }
-    });
+    const customer = req.user ? await Customer.findOne({ where: { user_id: req.user.user_id } }) : null;
 
     const payment = await Payment.findOne({
       where: { booking_id: bookingId },
@@ -111,8 +118,11 @@ exports.getPaymentStatus = async (req, res) => {
       });
     }
 
-    // Check ownership
-    if (req.user.role !== 'admin' && (!customer || payment.Booking.customer_id !== customer.customer_id)) {
+    // Check ownership — only meaningful when someone's logged in. Guests
+    // (no req.user) have no account to check against, so this is allowed
+    // through on the booking_id itself, same as the other guest-checkout
+    // lookups above.
+    if (req.user && req.user.role !== 'admin' && (!customer || payment.Booking.customer_id !== customer.customer_id)) {
       return res.status(403).json({
         success: false,
         message: 'Access denied'

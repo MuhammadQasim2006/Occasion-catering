@@ -3,8 +3,7 @@ import { ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-// Shell for POST /api/auth/login (see API contract, TICKET-001).
-// Uses the auth Pinia store's stub login() until real endpoints land (TICKET-006).
+// Wired to the real backend (POST /api/auth/login via the auth store).
 
 const route = useRoute()
 const router = useRouter()
@@ -17,7 +16,7 @@ const showPassword = ref(false)
 const error = ref('')
 const isSubmitting = ref(false)
 
-function handleSubmit() {
+async function handleSubmit() {
   error.value = ''
 
   if (!email.value || !password.value) {
@@ -27,12 +26,16 @@ function handleSubmit() {
 
   isSubmitting.value = true
 
-  // Stub call — swap for a real POST /api/auth/login once wired.
-  auth.login(email.value)
-  isSubmitting.value = false
-  // If the router guard sent us here from an auth-gated page (e.g.
-  // /dashboard), return there instead of always landing on Home.
-  router.push(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
+  try {
+    await auth.login(email.value, password.value)
+    // If the router guard sent us here from an auth-gated page (e.g.
+    // /dashboard), return there instead of always landing on Home.
+    router.push(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
+  } catch (err) {
+    error.value = err.message || 'Could not log in. Please check your details and try again.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 

@@ -1,4 +1,52 @@
-const { sequelize, Booking, BookingItem, Customer, CateringPackage, Payment } = require('../models');
+const crypto = require('crypto');
+const { Op, fn, col, where } = require('sequelize');
+const { sequelize, Booking, BookingItem, Customer, CateringPackage, Payment, User } = require('../models');
+
+// Guest checkout has no logged-in user, but every Booking still needs a
+// Customer row (customer_id is a required FK). Rather than changing that
+// schema, we transparently find-or-create a User+Customer from the contact
+// details on the booking form:
+//  - If the email already belongs to an account, the guest booking is
+//    attached to that account (same as most "checkout as guest" flows).
+//  - Otherwise a new account is created with an unusable random password —
+//    it exists purely to own the booking. The person is never told
+//    credentials and isn't logged into it; they can always use "Forgot
+//    password" later if they want to claim it.
+async function findOrCreateGuestCustomer({ contact_name, contact_email, contact_phone }, t) {
+  const existingUser = await User.findOne({
+    where: where(fn('LOWER', col('email')), contact_email.toLowerCase()),
+    transaction: t,
+  });
+
+  if (existingUser) {
+    const existingCustomer = await Customer.findOne({ where: { user_id: existingUser.user_id }, transaction: t });
+    if (existingCustomer) return existingCustomer;
+    // Account exists but (unusually) has no Customer row yet — create one.
+    const [firstName, ...rest] = contact_name.trim().split(' ');
+    return Customer.create(
+      { user_id: existingUser.user_id, first_name: firstName || contact_name, last_name: rest.join(' ') || '', phone: contact_phone || null },
+      { transaction: t },
+    );
+  }
+
+  const randomPassword = crypto.randomBytes(24).toString('hex');
+  const newUser = await User.create(
+    {
+      email: contact_email.toLowerCase(),
+      password_hash: randomPassword, // hashed by the User model's beforeCreate hook
+      name: contact_name,
+      phone: contact_phone || null,
+      role: 'customer',
+    },
+    { transaction: t },
+  );
+
+  const [firstName, ...rest] = contact_name.trim().split(' ');
+  return Customer.create(
+    { user_id: newUser.user_id, first_name: firstName || contact_name, last_name: rest.join(' ') || '', phone: contact_phone || null },
+    { transaction: t },
+  );
+}
 
 // Mirrors occasion-frontend/src/utils/coupons.js. There's no Coupons table
 // yet, so this is the same demo list kept in sync on both sides — but
@@ -45,10 +93,18 @@ exports.createBooking = async (req, res) => {
       return res.status(400).json({ success: false, error: 'At least one package item is required' });
     }
 
-    const customer = await Customer.findOne({ where: { user_id: req.user.user_id }, transaction: t });
-    if (!customer) {
-      await t.rollback();
-      return res.status(400).json({ success: false, error: 'No customer profile for this account' });
+    // Logged-in customer: use their existing profile. Guest (no req.user,
+    // since this route uses optionalAuth): find-or-create one from the
+    // contact details so guests can check out without an account.
+    let customer;
+    if (req.user) {
+      customer = await Customer.findOne({ where: { user_id: req.user.user_id }, transaction: t });
+      if (!customer) {
+        await t.rollback();
+        return res.status(400).json({ success: false, error: 'No customer profile for this account' });
+      }
+    } else {
+      customer = await findOrCreateGuestCustomer({ contact_name, contact_email, contact_phone }, t);
     }
 
     const packageIds = [...new Set(items.map((i) => i.package_id))];
@@ -175,7 +231,13 @@ exports.getBookingById = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Booking not found' });
     }
 
-    if (req.user.role !== 'admin') {
+    // Logged-in users can only see their own booking (or any, if admin).
+    // Guests (no req.user — this route uses optionalAuth) have no account
+    // to check ownership against; the booking_id itself is what Payment.vue
+    // and Confirmation.vue use to look it up right after checkout, so we
+    // allow the lookup through rather than locking guests out of their own
+    // just-created booking.
+    if (req.user && req.user.role !== 'admin') {
       const customer = await Customer.findOne({ where: { user_id: req.user.user_id } });
       if (!customer || booking.customer_id !== customer.customer_id) {
         return res.status(403).json({ success: false, error: 'Access denied' });

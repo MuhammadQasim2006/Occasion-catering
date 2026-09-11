@@ -16,10 +16,15 @@ const VALIDATE_HOST =
 // WERE ADDED to the payload (not sorted alphabetically). This matters both
 // when we build the outgoing signature and when we verify an inbound ITN,
 // where we must walk req.body's keys in the order PayFast sent them.
+// PayFast's signature check is generated server-side with PHP's urlencode(),
+// which escapes everything except A-Z a-z 0-9 - _ . (and turns space into
+// '+'). JS's encodeURIComponent leaves ! ~ * ' ( ) unescaped, so those need
+// fixing up by hand to match PHP byte-for-byte, or the signature won't
+// reproduce what PayFast recomputes on their end.
 function pfEncode(value) {
   return encodeURIComponent(String(value).trim())
     .replace(/%20/g, '+')
-    .replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+    .replace(/[!'()*~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
 function buildSignature(fields, passphrase) {

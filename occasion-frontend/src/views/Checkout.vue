@@ -95,10 +95,9 @@ function removePackage(index) {
 async function handleSubmit() {
   error.value = ''
 
-  if (!auth.isLoggedIn) {
-    router.push({ path: '/login', query: { redirect: '/checkout' } })
-    return
-  }
+  // Guest checkout: no account is required to select and pay for a
+  // package — the backend accepts bookings without a token and attaches
+  // them to the contact details entered below.
   if (!cart.items.length) {
     error.value = 'Your cart is empty — add a package before checking out.'
     return
